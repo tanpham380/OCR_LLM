@@ -1,0 +1,57 @@
+# Compiled object files
+*.pyc
+__pycache__/
+*.pyd
+*.pyo
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+sdist/
+var/
+*.egg
+MANIFEST
+
+# PyInstaller / Nuitka
+build/
+develop-eggs/
+*.spec
+*.exe
+*.so
+*.dylib
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+
+# YOLOv8 models
+*.onnx
+*.engine
+*.pt
+*.torchscript
+*.pb
+*.tflite
+*.cfg
+*.weights
+*.best.pt
+*.last.pt
+runs/
+
+# SQLite databases
+*.db
+
+Image files (adjust as needed)
+*.jpg
+*.jpeg
+*.png
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp

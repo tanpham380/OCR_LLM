@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Uvicorn Debugger: FastAPI App",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "main:scan_app", // Replace "main:scanapp" with your application entry point
+                "--reload",
+                "--port",
+                "5001",
+                "--host",
+                "0.0.0.0"
+            ],
+            "jinja": true,
+            "console": "integratedTerminal",
+            "env": {}, 
+            "justMyCode": true
+        }
+    ]
+}

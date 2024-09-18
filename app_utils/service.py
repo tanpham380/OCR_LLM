@@ -1,0 +1,210 @@
+import json
+import numpy as np
+import torch
+from app_utils.file_handler import save_image
+from app_utils.logging import get_logger
+from app_utils.util import rotate_image
+from controller.detecter_controller import Detector
+from controller.llm_controller import LlmController
+
+logger = get_logger(__name__)
+
+# Initialize controllers
+detector_controller = Detector()
+llm_controller = LlmController()
+
+
+async def detect_and_preprocess_image(image_path: str, mat_sau: bool) -> np.ndarray:
+    """
+    Detects the image and preprocesses it for further processing.
+
+    Args:
+        image_path (str): The path to the image file.
+        mat_sau (bool): Indicates if the card orientation should be checked.
+
+    Returns:
+        np.ndarray: The processed image.
+
+    Raises:
+        Exception: If an error occurs during detection or preprocessing.
+    """
+    try:
+        # Detect the card in the image
+        
+        image = await detector_controller.detect(image_path)
+        if image is None:
+            raise Exception("Failed to detect image.")
+        if mat_sau:
+            up_down_check = await detector_controller.detect_card_orientation(image)
+        else:
+            up_down_check = detector_controller.detect_face_orientation(image)
+        # if up_down_check:
+        #     image = rotate_image(image, 180)
+        return image
+    except Exception as e:
+        logger.error(f"Error during image detection and preprocessing: {e}")
+        raise e
+
+def read_qr_code(image: np.ndarray) -> str:
+    """
+    Reads the QR code from the image.
+
+    Args:
+        image (np.ndarray): The image in which QR code is to be read.
+
+    Returns:
+        str: The text data from the QR code or an empty string if not found.
+
+    Raises:
+        Exception: If an error occurs while reading the QR code.
+    """
+    try:
+        return detector_controller.read_QRcode(image) or ""
+    except Exception as e:
+        logger.error(f"Error reading QR Code: {e}")
+        raise e
+
+async def perform_ocr(image: np.ndarray) -> dict:
+    """
+    Performs OCR on the provided image using the detector.
+
+    Args:
+        image (np.ndarray): The image on which OCR is to be performed.
+
+    Returns:
+        dict: The OCR results.
+
+    Raises:
+        Exception: If an error occurs during OCR.
+    """
+    try:
+        return await detector_controller.get_ocr().scan_image(image, ["package_ocr"])
+    except Exception as e:
+        logger.error(f"Error during OCR scan: {e}")
+        raise e
+async def process_with_llm(dict_ocr: dict) -> dict:
+    """
+    Processes the OCR data with an LLM and returns the response as a dictionary.
+
+    Args:
+        dict_ocr (dict): The OCR results and QR code data.
+
+    Returns:
+        dict: The response from LLM in dictionary format.
+
+    Raises:
+        Exception: If an error occurs during LLM processing.
+    """
+    try:
+        
+        llm_controller.set_user_context(dict_ocr)
+        response = await llm_controller.send_message()
+        
+        # Extract the message content from the response
+        message_content = response.get('message', {}).get('content', '')
+        
+        # Convert the message content to JSON
+        if isinstance(message_content, str):
+            try:
+                # Try parsing the content if it's a JSON string
+                message_json = json.loads(message_content)
+            except json.JSONDecodeError:
+                # If parsing fails, treat it as plain text
+                message_json = {"error": "Failed to parse JSON content"}
+        else:
+            message_json = message_content
+        
+        return message_json
+    except Exception as e:
+        logger.error(f"Error during LLM processing: {e}")
+        raise e
+
+async def process_with_llm_custom(system_prompt: str = "", user_prompt: str = '', custom_image: str = '') -> str:
+    """
+    Processes custom data with an LLM.
+
+    Args:
+        system_prompt (str): The system prompt for LLM.
+        user_prompt (str): The user prompt for LLM.
+        custom_image (str): Custom image data.
+
+    Returns:
+        str: The formatted response string from LLM.
+
+    Raises:
+        ValueError: If user_prompt is None.
+        Exception: If an error occurs during LLM processing.
+    """
+    if user_prompt is None:
+        raise ValueError("User prompt cannot be None.")
+    try:
+        response = await llm_controller.send_custom_message(system_prompt, user_prompt, custom_image)
+        result = response.get('message', {}).get('content', '')
+        return result
+    except Exception as e:
+        logger.error(f"Error during custom LLM processing: {e}")
+        raise e
+    
+    
+import time  # Thêm thư viện time để đo thời gian xử lý
+
+async def scan(image_path: str) -> str:
+    """
+    Scans the ID card (CCCD) image using the EasyOCR controller, processes the text with LLM, 
+    and returns the corrected information in JSON format.
+
+    Args:
+        image_path (str): The path to the image file.
+
+    Returns:
+        str: The formatted JSON string containing corrected OCR data.
+
+    Raises:
+        Exception: If an error occurs during scanning or processing.
+    """
+    try:
+        # Phát hiện và xử lý ảnh CCCD
+        start_time = time.time()
+
+        image, mat_truoc = detector_controller.detect(image_path)
+        if image is None:
+            raise Exception("Failed to detect image.")
+        if mat_truoc:  # Nếu không phải mặt sau
+            up_down_check = detector_controller.detect_face_orientation(image)
+        else:
+            up_down_check = detector_controller.detect_card_orientation(image)
+        if up_down_check:
+            image = rotate_image(image, 180)
+        qr_code_text = detector_controller.read_QRcode(image)
+        ocr_text = await detector_controller.get_ocr().scan_image(image, ["package_ocr"])
+
+        dict_ocr = {
+            "package_ocr": ocr_text,
+            "qr_code_data": qr_code_text or " "
+        }        
+        llm_controller.set_user_context(dict_ocr)
+        llm_response = await llm_controller.send_message()
+        message_content = llm_response.get('message', {}).get('content', '')
+        print(message_content)
+        if isinstance(message_content, str):
+            try:
+                message_json = json.loads(message_content)
+            except json.JSONDecodeError:
+                message_json = {"error": "Failed to parse JSON content"}
+        else:
+            message_json = message_content
+        message_json['mat_truoc'] = mat_truoc
+        end_time = time.time()
+        
+        processing_time = end_time - start_time
+
+        llm_response_with_time = {
+            "llm_response": message_json,
+            "processing_time_seconds": processing_time
+        }
+        torch.cuda.empty_cache()
+        return llm_response_with_time
+    except Exception as e:
+        logger.error(f"An error occurred during the scanning process: {e}")
+        raise e
+
