@@ -1,4 +1,7 @@
+import asyncio
 import json
+import re
+from typing import List
 import numpy as np
 import torch
 from app_utils.file_handler import save_image
@@ -6,6 +9,12 @@ from app_utils.logging import get_logger
 from app_utils.util import rotate_image
 from controller.detecter_controller import Detector
 from controller.llm_controller import LlmController
+import asyncio
+import json
+import time
+import re
+import torch
+
 
 logger = get_logger(__name__)
 
@@ -145,66 +154,124 @@ async def process_with_llm_custom(system_prompt: str = "", user_prompt: str = ''
         logger.error(f"Error during custom LLM processing: {e}")
         raise e
     
-    
-import time  # Thêm thư viện time để đo thời gian xử lý
 
-async def scan(image_path: str) -> str:
+async def scan(image_path: List[str]) -> str:
     """
     Scans the ID card (CCCD) image using the EasyOCR controller, processes the text with LLM, 
     and returns the corrected information in JSON format.
-
+    
     Args:
-        image_path (str): The path to the image file.
-
+        image_path (List[str]): List containing paths to the two image files (front and back).
+    
     Returns:
         str: The formatted JSON string containing corrected OCR data.
-
+    
     Raises:
         Exception: If an error occurs during scanning or processing.
     """
     try:
-        # Phát hiện và xử lý ảnh CCCD
         start_time = time.time()
-
-        image, mat_truoc = detector_controller.detect(image_path)
-        if image is None:
-            raise Exception("Failed to detect image.")
-        if mat_truoc:  # Nếu không phải mặt sau
-            up_down_check = detector_controller.detect_face_orientation(image)
+        # Process both images concurrently using asyncio.gather
+        ocr_result_1, ocr_result_2 = await asyncio.gather(
+            process_image(image_path[0]),  # Process front image
+            process_image(image_path[1])   # Process back image
+        )
+        if ocr_result_1["mat_truoc"]:
+            combined_ocr_data = {
+                "front_side_ocr": ocr_result_1["ocr_text"],
+                "front_side_qr": ocr_result_1["qr_code_text"],
+                "back_side_ocr": ocr_result_2["ocr_text"],
+                "back_side_qr": ocr_result_2["qr_code_text"]
+            }
         else:
-            up_down_check = detector_controller.detect_card_orientation(image)
-        if up_down_check:
-            image = rotate_image(image, 180)
-        qr_code_text = detector_controller.read_QRcode(image)
-        ocr_text = await detector_controller.get_ocr().scan_image(image, ["package_ocr"])
+            combined_ocr_data = {
+                "front_side_ocr": ocr_result_2["ocr_text"],
+                "front_side_qr": ocr_result_2["qr_code_text"],
+                "back_side_ocr": ocr_result_1["ocr_text"],
+                "back_side_qr": ocr_result_1["qr_code_text"]
+            }
+        print(combined_ocr_data)
+        llm_controller.set_user_context(combined_ocr_data)  
+        llm_controller.set_model('qwen2.5')
 
-        dict_ocr = {
-            "package_ocr": ocr_text,
-            "qr_code_data": qr_code_text or " "
-        }        
-        llm_controller.set_user_context(dict_ocr)
         llm_response = await llm_controller.send_message()
-        message_content = llm_response.get('message', {}).get('content', '')
+        message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
         print(message_content)
-        if isinstance(message_content, str):
-            try:
-                message_json = json.loads(message_content)
-            except json.JSONDecodeError:
-                message_json = {"error": "Failed to parse JSON content"}
-        else:
-            message_json = message_content
-        message_json['mat_truoc'] = mat_truoc
+        try:
+            message_json = json.loads(message_content)
+        except json.JSONDecodeError:
+            message_json = {"error": "Failed to parse JSON content"}
+
         end_time = time.time()
-        
         processing_time = end_time - start_time
 
+        # Add processing time to the response
         llm_response_with_time = {
             "llm_response": message_json,
             "processing_time_seconds": processing_time
         }
-        torch.cuda.empty_cache()
+
+        # Clear GPU cache if necessary
+        torch.cuda.empty_cache()  # Only if you are using GPU with PyTorch
+
         return llm_response_with_time
+
     except Exception as e:
         logger.error(f"An error occurred during the scanning process: {e}")
         raise e
 
+
+def clean_message_content(message_content: str) -> str:
+    """
+    Cleans the JSON string by removing code block markers (```json and ```).
+    
+    Args:
+        message_content (str): The raw message content to clean.
+    
+    Returns:
+        str: Cleaned message content without code block markers.
+    """
+    # Remove code block markers using regular expressions
+    return re.sub(r'^```json|```$', '', message_content).strip()
+
+async def process_image(image_path: str) -> dict:
+    """
+    Processes a single ID card image for OCR, QR code detection, and orientation correction.
+    
+    Args:
+        image_path (str): The path to the image file.
+    
+    Returns:
+        dict: A dictionary containing the OCR, QR code data, and whether it's the front side (mat_truoc).
+    """
+    try:
+        # Load image in an asynchronous fashion if possible
+        image, mat_truoc = await asyncio.to_thread(detector_controller.detect, image_path)
+        if image is None:
+            raise Exception(f"Failed to detect image at {image_path}.")
+
+        # Check if the image is upside down and rotate if necessary
+        if mat_truoc:
+            up_down_check = await asyncio.to_thread(detector_controller.detect_face_orientation, image)
+        else:
+            up_down_check = await asyncio.to_thread(detector_controller.detect_card_orientation, image)
+
+        if up_down_check:
+            image = await asyncio.to_thread(rotate_image, image, 180)
+
+        # Parallelize QR code and OCR scanning
+        qr_code_text, ocr_text = await asyncio.gather(
+            asyncio.to_thread(detector_controller.read_QRcode, image),
+            asyncio.to_thread(detector_controller.get_ocr().scan_image, image, ["package_ocr"])
+        )
+
+        # Return OCR data, QR data, and whether it's the front side (mat_truoc)
+        return {
+            "ocr_text":await ocr_text,
+            "qr_code_text": await qr_code_text if qr_code_text else " ",
+            "mat_truoc": mat_truoc
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing image: {e}")
+        raise e

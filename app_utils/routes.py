@@ -23,15 +23,17 @@ async def scan_cccd():
     """
     try:
         file = (await request.files).get("image")
-        if not file:
+        file2 = (await request.files).get("image2")
+        if not file or not file2:
             return jsonify({"successful": False, "message": "No image found in the request", "data": None}), 400
 
         
-        if file:
-            filepath = secure_file(file)
-            if "not allowed" in filepath:
-                return jsonify({"successful": False, "message": "File extension not allowed", "data": None}), 400
-            llm_response = await scan(filepath)
+        if file and file2:
+            list_path = [secure_file(file) , secure_file(file2)] 
+            for i in list_path :
+                if "not allowed" in i:
+                    return jsonify({"successful": False, "message": "File extension not allowed", "data": None}), 400
+            llm_response = await scan(list_path)
             return jsonify({"successful": True, "message": "OCR performed successfully", "data": llm_response}), 200
         else:
             return jsonify({"successful": False, "message": "No image found in the request", "data": None}), 400

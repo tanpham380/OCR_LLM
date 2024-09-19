@@ -181,11 +181,6 @@ class OcrController:
 
             # Paste the resized image onto the white background
             new_img.paste(img_resized, paste_position)
-
-            # Save the image if needed for debugging
-            save_image(new_img)
-
-            # Run OCR
             predictions = run_ocr(
                 [new_img],
                 [self.language_list],

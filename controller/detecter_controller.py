@@ -61,7 +61,7 @@ class Detector:
             raise e
 
 
-    def read_QRcode(self, image: np.ndarray) -> str:
+    async def read_QRcode(self, image: np.ndarray) -> str:
         """
         Reads and decodes the QR code from the provided image.
 
