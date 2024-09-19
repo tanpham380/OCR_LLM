@@ -36,7 +36,7 @@ class LlmController:
     def set_system_prompt(self, prompt: str) -> None:
         self.system_prompt = prompt
 
-    def set_user_context(self, ocr_results: Dict[str, Any]) -> None:
+    def set_user_context(self, ocr_results: Dict[str, Any]) -> str:
         """
         Sets the user context by generating the combined context from both front and back OCR and QR data,
         with a fallback to the back QR code if the front QR code is missing.
@@ -45,6 +45,8 @@ class LlmController:
             ocr_results (Dict[str, Any]): Combined OCR results from the front and back images.
         """
         self.user_context = self._generate_user_context(ocr_results)
+        return self.user_context
+
 
     def _generate_user_context(self, ocr_results: Dict[str, Any]) -> str:
         """

@@ -1,108 +1,131 @@
-import sqlite3
-from flask import g, current_app
-from typing import List, Dict, Any, Optional
+import base64
+import aiosqlite
+from quart import g, current_app
+import logging
+import json
+import asyncio
 
 class SQLiteManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
-    def optimize_sqlite(self):
-        """Optimize SQLite settings for better performance."""
-        with self.get_connection() as conn:
-            conn.execute("PRAGMA synchronous = OFF")
-            conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute("PRAGMA page_size = 4096")  # Adjust page size as needed
+        self.logger = logging.getLogger(__name__)
 
-    def get_connection(self):
+    async def optimize_sqlite(self):
+        """Optimize SQLite settings for better performance."""
+        conn = await self.get_connection()
+        await conn.execute("PRAGMA synchronous = OFF")
+        await conn.execute("PRAGMA journal_mode = WAL")
+        await conn.execute("PRAGMA page_size = 4096")
+        await conn.commit()
+
+    async def get_connection(self):
         if current_app:
-            # Use Flask's `g` to manage the connection in the app context
             if 'db_connection' not in g:
-                g.db_connection = sqlite3.connect(self.db_path)
-                g.db_connection.row_factory = sqlite3.Row  # Enables dict-like cursor
+                g.db_connection = await aiosqlite.connect(self.db_path)
+                g.db_connection.row_factory = aiosqlite.Row
             return g.db_connection
         else:
-            # Use thread-local storage for connections outside Flask context
-            if not hasattr(self.local, 'connection'):
-                self.local.connection = sqlite3.connect(self.db_path)
-                self.local.connection.row_factory = sqlite3.Row
-            return self.local.connection
+            conn = await aiosqlite.connect(self.db_path)
+            conn.row_factory = aiosqlite.Row
+            return conn
 
-    def close_connection(self, error=None):
-        if current_app and 'db_connection' in g:
-            g.db_connection.close()
-            g.pop('db_connection', None)
-        elif hasattr(self.local, 'connection'):
-            self.local.connection.close()
-            del self.local.connection
+    async def close_connection(self, error=None):
+        conn = g.pop('db_connection', None)
+        if conn:
+            await conn.close()
 
-    def create_table(self):
-        self.execute_with_timeout(self._create_table)
+    async def create_table(self):
+        """Create necessary tables if they don't exist."""
+        conn = await self.get_connection()
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS scan_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                result_json TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS ocr_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                front_side_ocr TEXT,
+                front_side_qr TEXT,
+                back_side_ocr TEXT,
+                back_side_qr TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS user_contexts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ocr_result_id INTEGER,
+                context TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id)
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ocr_result_id INTEGER,
+                image_type TEXT NOT NULL,
+                image_data TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ocr_result_id) REFERENCES ocr_results(id)
+            )
+        ''')
+        await conn.commit()
 
-    def _create_table(self):
-        with self.get_connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS face_embeddings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    uid TEXT NOT NULL,
-                    embedding BLOB NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(uid, embedding)
-                )
-            """)
+    async def insert_scan_result(self, data: dict):
+        """Insert scan result into the scan_results table."""
+        conn = await self.get_connection()
+        await conn.execute('INSERT INTO scan_results (result_json) VALUES (?)', (json.dumps(data),))
+        await conn.commit()
+
+    async def insert_ocr_result(self, data: dict) -> int:
+        import json  # Ensure this import is present
+        conn = await self.get_connection()
+        cursor = await conn.execute('''
+            INSERT INTO ocr_results (
+                front_side_ocr,
+                front_side_qr,
+                back_side_ocr,
+                back_side_qr
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            json.dumps(data.get('front_side_ocr')),  # Serialize to JSON string
+            data.get('front_side_qr'),
+            json.dumps(data.get('back_side_ocr')),   # Serialize to JSON string
+            data.get('back_side_qr')
+        ))
+        await conn.commit()
+        return cursor.lastrowid
 
 
-    def _create_task_status_table(self):
-        with self.transaction() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS task_status (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    task_id TEXT NOT NULL UNIQUE,
-                    uid TEXT,
-                    status TEXT NOT NULL,
-                    is_final_task BOOLEAN DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_task_uid ON task_status (uid)
-            """)
+    async def insert_user_context(self, ocr_result_id: int, context: str):
+        """Insert generated user context into the user_contexts table."""
+        conn = await self.get_connection()
+        await conn.execute('''
+            INSERT INTO user_contexts (ocr_result_id, context)
+            VALUES (?, ?)
+        ''', (ocr_result_id, context))
+        await conn.commit()
 
-    def execute_raw_sql(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
-        return self.execute_with_timeout(self._execute_raw_sql, args=(query, params))
+    async def insert_image(self, ocr_result_id: int, image_type: str, image_data: str):
+        """Insert base64 encoded image data into the images table."""
+        conn = await self.get_connection()
+        await conn.execute('''
+            INSERT INTO images (ocr_result_id, image_type, image_data)
+            VALUES (?, ?, ?)
+        ''', (ocr_result_id, image_type, image_data))
+        await conn.commit()
 
-    def _execute_raw_sql(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
-        with self.get_connection() as conn:
-            cursor = conn.execute(query, params)
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
+    @staticmethod
+    async def image_to_base64(image_path: str) -> str:
+        """Convert image file to base64 string."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, SQLiteManager._sync_image_to_base64, image_path)
 
-    def transaction(self):
-        """Context manager for transaction management."""
-        class TransactionContext:
-            def __init__(self, manager):
-                self.manager = manager
-                self.conn = None
-
-            def __enter__(self):
-                self.conn = self.manager.get_connection()
-                self.manager.logger.info("Starting a new transaction...")
-                self.conn.execute("BEGIN TRANSACTION")
-                return self.conn
-
-            def __exit__(self, exc_type, exc_value, traceback):
-                if exc_type is None:
-                    try:
-                        self.manager.logger.info("Committing the transaction...")
-                        self.conn.execute("COMMIT")
-                    except sqlite3.Error as e:
-                        self.manager.logger.error(f"Failed to commit transaction: {e}")
-                        self.conn.execute("ROLLBACK")
-                        raise
-                else:
-                    self.manager.logger.info("Rolling back the transaction due to an exception...")
-                    self.conn.execute("ROLLBACK")
-
-        return TransactionContext(self)
-
-    def close(self):
-        self.close_connection()
+    @staticmethod
+    def _sync_image_to_base64(image_path: str) -> str:
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
