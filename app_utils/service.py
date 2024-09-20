@@ -8,6 +8,7 @@ import torch
 from app_utils.file_handler import save_image
 from app_utils.logging import get_logger
 from app_utils.util import rotate_image
+from config import SAVE_IMAGES
 from controller.detecter_controller import Detector
 from controller.llm_controller import LlmController
 import asyncio
@@ -186,17 +187,9 @@ async def scan(image_paths: List[str]) -> dict:
 
         ocr_result_id = await db_manager.insert_ocr_result(combined_ocr_data)
 
-        # Convert images to base64 in parallel
-        image_base64_tasks = [
-            db_manager.image_to_base64(front_result["image_path"]),
-            db_manager.image_to_base64(back_result["image_path"])
-        ]
-        front_image_base64, back_image_base64 = await asyncio.gather(*image_base64_tasks)
-
-        # Insert images into the database
         await asyncio.gather(
-            db_manager.insert_image(ocr_result_id, 'front', front_image_base64),
-            db_manager.insert_image(ocr_result_id, 'back', back_image_base64)
+            db_manager.insert_image(ocr_result_id, 'front', front_result["image_path"]),
+            db_manager.insert_image(ocr_result_id, 'back', back_result["image_path"])
         )
 
         # LLM processing
@@ -215,9 +208,6 @@ async def scan(image_paths: List[str]) -> dict:
             "processing_time_seconds": processing_time
         }
 
-        logger.info(f"LLM response with processing time: {llm_response_with_time}")
-
-        # Clear GPU cache if using GPU
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -227,19 +217,17 @@ async def scan(image_paths: List[str]) -> dict:
 
     except Exception as e:
         logger.error(f"An error occurred during the scanning process: {e}")
-        raise
+        raise e
 
 async def process_image(image_path: str) -> dict:
     """
     Processes a single ID card image for OCR, QR code detection, and orientation correction.
     """
     try:
-        # Remove asyncio.to_thread for model inference
         image, mat_truoc = detector_controller.detect(image_path)
         if image is None:
             raise ValueError(f"Failed to detect image at {image_path}.")
-
-        # Determine orientation
+        image_path = save_image(image, SAVE_IMAGES)
         if mat_truoc:
             up_down_check = detector_controller.detect_face_orientation(image)
         else:
@@ -248,7 +236,6 @@ async def process_image(image_path: str) -> dict:
         if up_down_check:
             image = rotate_image(image, 180)
 
-        # Parallelize QR code and OCR scanning
         qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
         ocr_text_task = asyncio.to_thread(detector_controller.get_ocr().scan_image, image, ["package_ocr"])
         qr_code_text, ocr_text = await asyncio.gather(qr_code_text_task, ocr_text_task)
@@ -267,6 +254,7 @@ async def process_image(image_path: str) -> dict:
 
 def clean_message_content(message_content: str) -> str:
     """
-    Cleans the JSON string by removing code block markers (```json and ```).
+    Cleans the JSON string by removing code block markers and extra spaces or new lines.
     """
-    return re.sub(r'^```json|```$', '', message_content).strip()
+    cleaned_content = re.sub(r'^```json|```$', '', message_content.strip(), flags=re.MULTILINE)
+    return cleaned_content.strip()

@@ -119,13 +119,3 @@ class SQLiteManager:
         ''', (ocr_result_id, image_type, image_data))
         await conn.commit()
 
-    @staticmethod
-    async def image_to_base64(image_path: str) -> str:
-        """Convert image file to base64 string."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, SQLiteManager._sync_image_to_base64, image_path)
-
-    @staticmethod
-    def _sync_image_to_base64(image_path: str) -> str:
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')

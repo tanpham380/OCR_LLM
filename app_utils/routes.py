@@ -91,34 +91,27 @@ async def get_ocr_full_results(ocr_result_id):
         result = await cursor.fetchall()
 
         result_list = []
+        image_url = []
         for row in result:
-            # Convert base64 image to file and generate a URL for the user
             if row["image_data"]:
-                image_data = base64.b64decode(row["image_data"])
-                im_arr = np.frombuffer(image_data, dtype=np.uint8)  # im_arr is one-dim Numpy array
 
-                img = cv2.imdecode(im_arr, flags=cv2.IMREAD_COLOR)
-
-                
-                image_path = save_image(img, SAVE_IMAGES)
-
-                image_url = url_for('static', filename=f'images/{os.path.basename(image_path)}', _external=True)
+                image_url.append(url_for('static', filename=f'images/{os.path.basename(row["image_data"])}', _external=True)) 
             else:
                 image_url = None
 
-            result_list.append({
-                "ocr_result_id": row["ocr_result_id"],
-                "front_side_ocr": row["front_side_ocr"],
-                "front_side_qr": row["front_side_qr"],
-                "back_side_ocr": row["back_side_ocr"],
-                "back_side_qr": row["back_side_qr"],
-                "ocr_timestamp": row["ocr_timestamp"],
-                "context": row["context"],
-                "context_timestamp": row["context_timestamp"],
-                "image_type": row["image_type"],
-                "image_url": image_url,  # Return the URL for the image
-                "image_timestamp": row["image_timestamp"]
-            })
+        result_list.append({
+            "ocr_result_id": row["ocr_result_id"],
+            "front_side_ocr": row["front_side_ocr"],
+            "front_side_qr": row["front_side_qr"],
+            "back_side_ocr": row["back_side_ocr"],
+            "back_side_qr": row["back_side_qr"],
+            "ocr_timestamp": row["ocr_timestamp"],
+            "context": row["context"],
+            "context_timestamp": row["context_timestamp"],
+            "image_url": image_url[0],  
+            "image_url2": image_url[1],
+            "image_timestamp": row["image_timestamp"]
+        })
 
         return jsonify({"successful": True, "message": "Full OCR results retrieved", "data": result_list}), 200
 

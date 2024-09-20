@@ -1,102 +1,104 @@
-# import numpy as np
-# import torch
-# import torchvision.transforms as T
-# # from decord import VideoReader, cpu
-# from PIL import Image
-# from torchvision.transforms.functional import InterpolationMode
-# from transformers import AutoModel, AutoTokenizer
-
-# IMAGENET_MEAN = (0.485, 0.456, 0.406)
-# IMAGENET_STD = (0.229, 0.224, 0.225)
-
-# def build_transform(input_size):
-#     MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
-#     transform = T.Compose([
-#         T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-#         T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
-#         T.ToTensor(),
-#         T.Normalize(mean=MEAN, std=STD)
-#     ])
-#     return transform
-
-# def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
-#     best_ratio_diff = float('inf')
-#     best_ratio = (1, 1)
-#     area = width * height
-#     for ratio in target_ratios:
-#         target_aspect_ratio = ratio[0] / ratio[1]
-#         ratio_diff = abs(aspect_ratio - target_aspect_ratio)
-#         if ratio_diff < best_ratio_diff:
-#             best_ratio_diff = ratio_diff
-#             best_ratio = ratio
-#         elif ratio_diff == best_ratio_diff:
-#             if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
-#                 best_ratio = ratio
-#     return best_ratio
-
-# def dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
-#     orig_width, orig_height = image.size
-#     aspect_ratio = orig_width / orig_height
-
-#     # calculate the existing image aspect ratio
-#     target_ratios = set(
-#         (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
-#         i * j <= max_num and i * j >= min_num)
-#     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
-
-#     # find the closest aspect ratio to the target
-#     target_aspect_ratio = find_closest_aspect_ratio(
-#         aspect_ratio, target_ratios, orig_width, orig_height, image_size)
-
-#     # calculate the target width and height
-#     target_width = image_size * target_aspect_ratio[0]
-#     target_height = image_size * target_aspect_ratio[1]
-#     blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
-
-#     # resize the image
-#     resized_img = image.resize((target_width, target_height))
-#     processed_images = []
-#     for i in range(blocks):
-#         box = (
-#             (i % (target_width // image_size)) * image_size,
-#             (i // (target_width // image_size)) * image_size,
-#             ((i % (target_width // image_size)) + 1) * image_size,
-#             ((i // (target_width // image_size)) + 1) * image_size
+# def _generate_user_context(self, ocr_results: Dict[str, Any]) -> str:
+#     try:
+#         front_ocr = (
+#             ocr_results.get("front_side_ocr", {})
+#             .get("package_ocr", "")
+#             .replace("\\", "")
 #         )
-#         # split the image
-#         split_img = resized_img.crop(box)
-#         processed_images.append(split_img)
-#     assert len(processed_images) == blocks
-#     if use_thumbnail and len(processed_images) != 1:
-#         thumbnail_img = image.resize((image_size, image_size))
-#         processed_images.append(thumbnail_img)
-#     return processed_images
+#         back_ocr = (
+#             ocr_results.get("back_side_ocr", {})
+#             .get("package_ocr", "")
+#             .replace("\\", "")
+#         )
 
-# def load_image(image_file, input_size=448, max_num=12):
-#     image = Image.open(image_file).convert('RGB')
-#     transform = build_transform(input_size=input_size)
-#     images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
-#     pixel_values = [transform(image) for image in images]
-#     pixel_values = torch.stack(pixel_values)
-#     return pixel_values
-# model = "5CD-AI"
-# model = AutoModel.from_pretrained(
-#     "5CD-AI/Vintern-1B-v3",
-#     torch_dtype=torch.bfloat16,
-#     low_cpu_mem_usage=True,
-#     trust_remote_code=True,
-# ).eval().cuda()
-# tokenizer = AutoTokenizer.from_pretrained("5CD-AI/Vintern-1B-v3", trust_remote_code=True, use_fast=False)
+#         front_qr_code_data = ocr_results.get("front_side_qr", "")
+#         back_qr_code_data = ocr_results.get("back_side_qr", "")
 
-# test_image = 'test-image.jpg'
+#         qr_code_data = (
+#             front_qr_code_data.strip()
+#             if front_qr_code_data.strip()
+#             else back_qr_code_data.strip()
+#         )
 
-# pixel_values = load_image(test_image, max_num=6).to(torch.bfloat16).cuda()
-# generation_config = dict(max_new_tokens= 1024, do_sample=False, num_beams = 3, repetition_penalty=2.5)
+#         if isinstance(qr_code_data, tuple):
+#             qr_code_data = str(qr_code_data)
 
-# question = '<image>\nMô tả hình ảnh một cách chi tiết.'
+#         # Phân tích dữ liệu mã QR
+#         qr_parts = qr_code_data.split("|")
+#         id_number = qr_parts[0] if len(qr_parts) > 0 else ""
+#         id_number_old = qr_parts[1] if len(qr_parts) > 1 else ""
+#         fullname = qr_parts[2] if len(qr_parts) > 2 else ""
+#         day_of_birth = qr_parts[3] if len(qr_parts) > 3 else ""
+#         sex = qr_parts[4] if len(qr_parts) > 4 else ""
+#         place_of_residence_qr = qr_parts[5] if len(qr_parts) > 5 else ""
+#         date_of_issue = qr_parts[6] if len(qr_parts) > 6 else ""
 
-# response, history = model.chat(tokenizer, pixel_values, question, generation_config, history=None, return_history=True)
+#         # Xây dựng chuỗi context với prompt tối ưu
+#         context = (
+#             "Dữ liệu trích xuất từ OCR và mã QR của Căn cước công dân Việt Nam:\n\n"
+#             "### Dữ liệu Mã QR:\n"
+#             f"{qr_code_data}\n\n"
+#             "Định dạng và giá trị của dữ liệu mã QR:\n"
+#             f"- Số Căn cước công dân (id_number): {id_number}\n"
+#             f"- Số CMND cũ (id_number_old): {id_number_old}\n"
+#             f"- Họ và tên (fullname): {fullname}\n"
+#             f"- Ngày sinh (day_of_birth): {day_of_birth} (định dạng: DDMMYYYY)\n"
+#             f"- Giới tính (sex): {sex}\n"
+#             f"- Nơi thường trú (place_of_residence): {place_of_residence_qr}\n"
+#             f"- Ngày cấp (date_of_issue): {date_of_issue} (định dạng: DDMMYYYY)\n\n"
+#             "### Dữ liệu OCR Mặt Trước:\n"
+#             f"{front_ocr}\n\n"
+#             "### Dữ liệu OCR Mặt Sau:\n"
+#             f"{back_ocr}\n\n"
+#             "Hãy phân tích và chỉnh sửa thông tin theo các hướng dẫn sau:\n\n"
+#             "1. **So sánh và Ưu tiên Dữ liệu:**\n"
+#             "   - So sánh thông tin từ mã QR và dữ liệu OCR.\n"
+#             "   - **Ưu tiên dữ liệu mã QR** nếu có sự không đồng nhất.\n\n"
+#             "2. **Sử dụng Dữ liệu OCR Khi Mã QR Thiếu:**\n"
+#             "   - Nếu thông tin thiếu từ mã QR hoặc mã QR trống, **sử dụng dữ liệu OCR**.\n"
+#             "   - **Chú ý đặc biệt tới các trường như `place_of_origin`, `nationality`, và `expiration_date`**, có thể không có trong mã QR nhưng có trong dữ liệu OCR.\n\n"
+#             "3. **Chỉnh sửa Lỗi OCR:**\n"
+#             "   - Chỉnh sửa lỗi chính tả, thiếu dấu, thiếu hoặc sai số trong ngày tháng và các vấn đề định dạng trong dữ liệu OCR.\n"
+#             "   - **Nếu một ngày bị thiếu do lỗi OCR (ví dụ, thiếu số), hãy cố gắng chỉnh sửa dựa trên ngữ cảnh**.\n\n"
+#             "4. **Định dạng Ngày:**\n"
+#             "   - Đảm bảo tất cả các ngày đều có định dạng **DD/MM/YYYY**.\n\n"
+#             "5. **Xử lý Thông tin Thiếu:**\n"
+#             "   - Để trống các trường (`\"\"`) nếu không thể xác định thông tin.\n\n"
+#             "6. **Trường Hợp Đặc Biệt:**\n"
+#             "   - **`place_of_origin`**:\n"
+#             "     - Tìm kiếm các cụm từ như **\"Quê quán:\", \"Nơi đăng ký khai sinh:\", \"Place of origin:\", \"Place of birth:\"** trong cả OCR mặt trước và sau.\n"
+#             "     - **Trích xuất và chỉnh sửa `place_of_origin`** từ dữ liệu OCR nếu nó bị thiếu trong mã QR.\n"
+#             "   - **`expiration_date`**:\n"
+#             "     - Nhận diện từ các cụm từ như **\"Có giá trị đến:\", \"Date of expiry:\", \"Ngày, tháng, năm hết hạn:\"**.\n"
+#             "     - **Chỉnh sửa các lỗi OCR**, như thiếu số trong năm.\n"
+#             "   - **`place_of_residence`**:\n"
+#             "     - Thường xuất hiện sau **\"Nơi thường trú:\", \"Place of residence:\", \"Nơi cư trú:\", \"Địa chỉ:\"**.\n"
+#             "     - Có thể trải dài qua nhiều dòng; **kết hợp các dòng để tạo địa chỉ đầy đủ**.\n\n"
+#             "7. **Xử lý Thông tin Nhiều dòng hoặc Bị Chia Cắt:**\n"
+#             "   - Xử lý thông tin trải dài qua nhiều dòng hoặc bị chia thành các phần khác nhau.\n"
+#             "   - **Kết hợp các dòng liên quan** để tái tạo đầy đủ địa chỉ hoặc các thông tin bị chia cắt.\n\n"
+#             "8. **Chú ý Ngữ cảnh:**\n"
+#             "   - Chú ý tới thông tin trên các dòng không mong đợi.\n"
+#             "   - **Sử dụng các manh mối ngữ cảnh** để kết hợp hoặc tách thông tin đúng cách.\n\n"
+#             "9. **Định dạng Kết quả:**\n"
+#             "   - **Chỉ trả về một đối tượng JSON** mà không có thêm văn bản, giải thích, hoặc chú thích nào khác.\n"
+#             "   - **Bao gồm tất cả các trường trong JSON**, ngay cả khi chúng trống (`\"\"`).\n\n"
+#             "### Cấu trúc JSON (giá trị nên bằng tiếng Việt):\n\n"
+#             "{\n"
+#             '  "id_number": "",\n'
+#             '  "id_number_old": "",\n'
+#             '  "fullname": "",\n'
+#             '  "day_of_birth": "",\n'
+#             '  "sex": "",\n'
+#             '  "nationality": "",\n'
+#             '  "place_of_residence": "",\n'
+#             '  "place_of_origin": "",\n'
+#             '  "expiration_date": "",\n'
+#             '  "date_of_issue": ""\n'
+#             "}\n"
+#         )
+#         return context
 
-# #question = "Câu hỏi khác ......"
-# #response, history = model.chat(tokenizer, pixel_values, question, generation_config, history=history, return_history=True)
-# #print(f'User: {question}\nAssistant: {response}')
+#     except Exception as e:
+#         logger.error(f"Lỗi tạo context người dùng: {e}")
+#         raise Exception("Lỗi tạo context người dùng")
