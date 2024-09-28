@@ -67,16 +67,14 @@ async def get_ocr_full_results(ocr_result_id):
         SELECT 
             ocr_results.id AS ocr_result_id,
             ocr_results.front_side_ocr,
-            ocr_results.front_side_qr,
             ocr_results.back_side_ocr,
-            ocr_results.back_side_qr,
+            ocr_results.qr_code_data,
             ocr_results.timestamp AS ocr_timestamp,
             user_contexts.context,
             user_contexts.timestamp AS context_timestamp,
             images.image_type,
             images.image_data,
             images.timestamp AS image_timestamp
-
         FROM 
             ocr_results
         LEFT JOIN 
@@ -90,26 +88,26 @@ async def get_ocr_full_results(ocr_result_id):
         cursor = await conn.execute(query, (ocr_result_id,))
         result = await cursor.fetchall()
 
+        if not result:
+            return jsonify({"successful": False, "message": "No OCR results found", "data": None}), 404
+
         result_list = []
         image_url = []
+        
         for row in result:
             if row["image_data"]:
-
-                image_url.append(url_for('static', filename=f'images/{os.path.basename(row["image_data"])}', _external=True)) 
-            else:
-                image_url = None
+                image_url.append(url_for('static', filename=f'images/{os.path.basename(row["image_data"])}', _external=True))
 
         result_list.append({
             "ocr_result_id": row["ocr_result_id"],
             "front_side_ocr": row["front_side_ocr"],
-            "front_side_qr": row["front_side_qr"],
-            "back_side_ocr": row["back_side_ocr"],
-            "back_side_qr": row["back_side_qr"],
+            "qr_code_data": row["qr_code_data"],
+            "back_side_ocr": row["back_side_ocr"],  # Ensure this is included in your SELECT
             "ocr_timestamp": row["ocr_timestamp"],
             "context": row["context"],
             "context_timestamp": row["context_timestamp"],
-            "image_url": image_url[0],  
-            "image_url2": image_url[1],
+            "image_url": image_url[0] if image_url else None,  
+            "image_url2": image_url[1] if len(image_url) > 1 else None,
             "image_timestamp": row["image_timestamp"]
         })
 
@@ -118,6 +116,7 @@ async def get_ocr_full_results(ocr_result_id):
     except Exception as e:
         logger.error(f"Error retrieving full OCR results: {e}")
         return jsonify({"successful": False, "message": str(e), "data": None}), 500
+
 
 @blueprint.route("/api/v1/scan_cccd", methods=['POST'])
 @require_api_key

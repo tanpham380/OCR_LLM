@@ -9,7 +9,7 @@ from config import CORNER_MODEL_PATH, CORNER_MODEL_PATH2
 class ImageRectify:
     def __init__(self):
         self.CORNER_MODEL = self.load_yolov8_model(CORNER_MODEL_PATH)  
-        self.ANGLE_MODEL = self.load_yolov8_model(CORNER_MODEL_PATH2) 
+        # self.ANGLE_MODEL = self.load_yolov8_model(CORNER_MODEL_PATH2) 
 
     def load_yolov8_model(self, model_path: str) -> YOLO:
         """Load YOLOv8 model."""
@@ -28,19 +28,19 @@ class ImageRectify:
         boxes = result.boxes.xyxy.cpu().numpy() 
         return boxes, detected_name
 
-    def process_obb_yolo(self, image: np.ndarray) -> Tuple[float]:
-        """Process the OBB YOLO model to calculate the angle."""
-        results = self.ANGLE_MODEL(image)[0]
-        if not hasattr(results, 'obb') or results.obb is None:
-            return 0
-        obb = results.obb
-        data = obb.data.cpu().numpy()
-        for i, box in enumerate(data):
-            _, _, _, _, rotation_radian = obb.xywhr[i].cpu().numpy()
-            angle_deg = np.degrees(rotation_radian)
-            return angle_deg
+    # def process_obb_yolo(self, image: np.ndarray) -> Tuple[float]:
+    #     """Process the OBB YOLO model to calculate the angle."""
+    #     results = self.ANGLE_MODEL(image)[0]
+    #     if not hasattr(results, 'obb') or results.obb is None:
+    #         return 0
+    #     obb = results.obb
+    #     data = obb.data.cpu().numpy()
+    #     for i, box in enumerate(data):
+    #         _, _, _, _, rotation_radian = obb.xywhr[i].cpu().numpy()
+    #         angle_deg = np.degrees(rotation_radian)
+    #         return angle_deg
 
-        return 0
+    #     return 0
 
     def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, bool]]:
         """Detect and align the ID card using both YOLO models."""
@@ -51,7 +51,7 @@ class ImageRectify:
         for box in boxes:
             x1, y1, x2, y2 = map(int, box)
             cropped_image = image[y1:y2, x1:x2]
-        angle_deg= self.process_obb_yolo(cropped_image) 
-        rotated_image = rotate_image(cropped_image, angle_deg)
+        # angle_deg= self.process_obb_yolo(cropped_image) 
+        # rotated_image = rotate_image(cropped_image, angle_deg)
         is_front = detected_name == "front"
-        return rotated_image, is_front
+        return cropped_image, is_front

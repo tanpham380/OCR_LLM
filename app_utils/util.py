@@ -1,10 +1,37 @@
 from collections import Counter
+import datetime
 import math
 import re
 import numpy as np
 import cv2
 from PIL import Image, ImageOps, ImageFilter
 import torch
+
+from datetime import datetime
+
+def calculate_expiration_date(date_of_birth_str):
+    date_of_birth = datetime.strptime(date_of_birth_str, "%d/%m/%Y")
+    today = datetime.today()
+    
+    # Calculate age
+    age = today.year - date_of_birth.year - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
+
+    # Determine the expiration milestone based on age
+    if age < 25:
+        milestone_age = 25
+    elif age < 40:
+        milestone_age = 40
+    elif age < 60:
+        milestone_age = 60
+    else:
+        # If over 60 years old, the ID card has no expiration date
+        return ""
+
+    # Calculate expiration date based on the milestone
+    expiration_date = date_of_birth.replace(year=date_of_birth.year + milestone_age)
+    expiration_date_str = expiration_date.strftime("%d/%m/%Y")
+    
+    return expiration_date_str
 
 
 

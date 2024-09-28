@@ -1,104 +1,167 @@
-# def _generate_user_context(self, ocr_results: Dict[str, Any]) -> str:
-#     try:
-#         front_ocr = (
-#             ocr_results.get("front_side_ocr", {})
-#             .get("package_ocr", "")
-#             .replace("\\", "")
+# import gradio as gr
+# import torch  # PyTorch for deep learning
+# import base64
+# import cv2  # OpenCV for image processing
+# import time  # For time tracking
+# import re  # Regular expressions for date extraction
+# from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+# from qwen_vl_utils import process_vision_info
+
+
+# class EraXVLPipeline:
+#     def __init__(self, model_path):
+#         self.model_path = model_path
+
+#         # Load the model with shared memory
+#         self.model = Qwen2VLForConditionalGeneration.from_pretrained(
+#             self.model_path,
+#             torch_dtype=torch.float16,
+#             attn_implementation="eager",
+#             device_map="auto",
+#             offload_state_dict=True
 #         )
-#         back_ocr = (
-#             ocr_results.get("back_side_ocr", {})
-#             .get("package_ocr", "")
-#             .replace("\\", "")
+
+#         # Load tokenizer and processor
+#         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+#         self.min_pixels = 256 * 28 * 28
+#         self.max_pixels = 1280 * 28 * 28
+#         self.processor = AutoProcessor.from_pretrained(
+#             self.model_path,
+#             min_pixels=self.min_pixels,
+#             max_pixels=self.max_pixels
 #         )
 
-#         front_qr_code_data = ocr_results.get("front_side_qr", "")
-#         back_qr_code_data = ocr_results.get("back_side_qr", "")
+#     def resize_image(self, image, max_size=1024):
+#         """Resize the image if larger than max_size."""
+#         height, width = image.shape[:2]
+#         scaling_factor = max_size / float(max(height, width))
+#         if scaling_factor < 1.0:
+#             image = cv2.resize(image, (int(width * scaling_factor), int(height * scaling_factor)))
+#         return image
 
-#         qr_code_data = (
-#             front_qr_code_data.strip()
-#             if front_qr_code_data.strip()
-#             else back_qr_code_data.strip()
+#     def encode_image(self, image, max_size=1024):
+#         """Encode image as base64 after resizing."""
+#         resized_img = self.resize_image(image, max_size)
+#         _, buffer = cv2.imencode('.jpg', resized_img)
+#         encoded_image = base64.b64encode(buffer).decode('utf-8')
+#         return f"data:image;base64,{encoded_image}"
+
+#     def prepare_message(self, img):
+#         """Prepare messages for each image with the text prompt."""
+#         base64_data = self.encode_image(img)
+#         message = {
+#             "role": "user",
+#             "content": [
+#                 {"type": "image", "image": base64_data},
+#                 {"type": "text", "text": "Optical Character Recognition for Image"}
+#             ]
+#         }
+#         return message
+
+#     def run_inference_single(self, img):
+#         """Run the inference process on a single image."""
+#         if img is None:
+#             return "No image provided.", 0  # Return error message if image is None
+        
+#         start_time = time.time()
+
+#         # Prepare the input message
+#         message = self.prepare_message(img)
+
+#         # Tokenize text and process the image
+#         tokenized_text = self.processor.apply_chat_template([message], tokenize=False, add_generation_prompt=True)
+#         image_inputs, video_inputs = process_vision_info([message])
+
+#         # Prepare the model inputs
+#         inputs = self.processor(
+#             text=[tokenized_text],
+#             images=image_inputs,
+#             videos=video_inputs,
+#             padding=True,
+#             return_tensors="pt"
+#         )
+#         inputs = inputs.to("cuda")
+
+#         # Set generation configuration
+#         generation_config = self.model.generation_config
+#         generation_config.do_sample = True
+#         generation_config.temperature = 0.2
+#         generation_config.top_k = 1
+#         generation_config.top_p = 0.001
+#         generation_config.max_new_tokens = 512
+#         generation_config.repetition_penalty = 1.1
+
+#         # Generate text based on inputs
+#         generated_ids = self.model.generate(**inputs, generation_config=generation_config)
+
+#         # Trim generated tokens and decode the text
+#         generated_ids_trimmed = [
+#             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+#         ]
+#         output_text = self.processor.batch_decode(
+#             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
 #         )
 
-#         if isinstance(qr_code_data, tuple):
-#             qr_code_data = str(qr_code_data)
+#         # Measure processing time
+#         process_result_time = time.time() - start_time
 
-#         # Phân tích dữ liệu mã QR
-#         qr_parts = qr_code_data.split("|")
-#         id_number = qr_parts[0] if len(qr_parts) > 0 else ""
-#         id_number_old = qr_parts[1] if len(qr_parts) > 1 else ""
-#         fullname = qr_parts[2] if len(qr_parts) > 2 else ""
-#         day_of_birth = qr_parts[3] if len(qr_parts) > 3 else ""
-#         sex = qr_parts[4] if len(qr_parts) > 4 else ""
-#         place_of_residence_qr = qr_parts[5] if len(qr_parts) > 5 else ""
-#         date_of_issue = qr_parts[6] if len(qr_parts) > 6 else ""
+#         return output_text[0], process_result_time
 
-#         # Xây dựng chuỗi context với prompt tối ưu
-#         context = (
-#             "Dữ liệu trích xuất từ OCR và mã QR của Căn cước công dân Việt Nam:\n\n"
-#             "### Dữ liệu Mã QR:\n"
-#             f"{qr_code_data}\n\n"
-#             "Định dạng và giá trị của dữ liệu mã QR:\n"
-#             f"- Số Căn cước công dân (id_number): {id_number}\n"
-#             f"- Số CMND cũ (id_number_old): {id_number_old}\n"
-#             f"- Họ và tên (fullname): {fullname}\n"
-#             f"- Ngày sinh (day_of_birth): {day_of_birth} (định dạng: DDMMYYYY)\n"
-#             f"- Giới tính (sex): {sex}\n"
-#             f"- Nơi thường trú (place_of_residence): {place_of_residence_qr}\n"
-#             f"- Ngày cấp (date_of_issue): {date_of_issue} (định dạng: DDMMYYYY)\n\n"
-#             "### Dữ liệu OCR Mặt Trước:\n"
-#             f"{front_ocr}\n\n"
-#             "### Dữ liệu OCR Mặt Sau:\n"
-#             f"{back_ocr}\n\n"
-#             "Hãy phân tích và chỉnh sửa thông tin theo các hướng dẫn sau:\n\n"
-#             "1. **So sánh và Ưu tiên Dữ liệu:**\n"
-#             "   - So sánh thông tin từ mã QR và dữ liệu OCR.\n"
-#             "   - **Ưu tiên dữ liệu mã QR** nếu có sự không đồng nhất.\n\n"
-#             "2. **Sử dụng Dữ liệu OCR Khi Mã QR Thiếu:**\n"
-#             "   - Nếu thông tin thiếu từ mã QR hoặc mã QR trống, **sử dụng dữ liệu OCR**.\n"
-#             "   - **Chú ý đặc biệt tới các trường như `place_of_origin`, `nationality`, và `expiration_date`**, có thể không có trong mã QR nhưng có trong dữ liệu OCR.\n\n"
-#             "3. **Chỉnh sửa Lỗi OCR:**\n"
-#             "   - Chỉnh sửa lỗi chính tả, thiếu dấu, thiếu hoặc sai số trong ngày tháng và các vấn đề định dạng trong dữ liệu OCR.\n"
-#             "   - **Nếu một ngày bị thiếu do lỗi OCR (ví dụ, thiếu số), hãy cố gắng chỉnh sửa dựa trên ngữ cảnh**.\n\n"
-#             "4. **Định dạng Ngày:**\n"
-#             "   - Đảm bảo tất cả các ngày đều có định dạng **DD/MM/YYYY**.\n\n"
-#             "5. **Xử lý Thông tin Thiếu:**\n"
-#             "   - Để trống các trường (`\"\"`) nếu không thể xác định thông tin.\n\n"
-#             "6. **Trường Hợp Đặc Biệt:**\n"
-#             "   - **`place_of_origin`**:\n"
-#             "     - Tìm kiếm các cụm từ như **\"Quê quán:\", \"Nơi đăng ký khai sinh:\", \"Place of origin:\", \"Place of birth:\"** trong cả OCR mặt trước và sau.\n"
-#             "     - **Trích xuất và chỉnh sửa `place_of_origin`** từ dữ liệu OCR nếu nó bị thiếu trong mã QR.\n"
-#             "   - **`expiration_date`**:\n"
-#             "     - Nhận diện từ các cụm từ như **\"Có giá trị đến:\", \"Date of expiry:\", \"Ngày, tháng, năm hết hạn:\"**.\n"
-#             "     - **Chỉnh sửa các lỗi OCR**, như thiếu số trong năm.\n"
-#             "   - **`place_of_residence`**:\n"
-#             "     - Thường xuất hiện sau **\"Nơi thường trú:\", \"Place of residence:\", \"Nơi cư trú:\", \"Địa chỉ:\"**.\n"
-#             "     - Có thể trải dài qua nhiều dòng; **kết hợp các dòng để tạo địa chỉ đầy đủ**.\n\n"
-#             "7. **Xử lý Thông tin Nhiều dòng hoặc Bị Chia Cắt:**\n"
-#             "   - Xử lý thông tin trải dài qua nhiều dòng hoặc bị chia thành các phần khác nhau.\n"
-#             "   - **Kết hợp các dòng liên quan** để tái tạo đầy đủ địa chỉ hoặc các thông tin bị chia cắt.\n\n"
-#             "8. **Chú ý Ngữ cảnh:**\n"
-#             "   - Chú ý tới thông tin trên các dòng không mong đợi.\n"
-#             "   - **Sử dụng các manh mối ngữ cảnh** để kết hợp hoặc tách thông tin đúng cách.\n\n"
-#             "9. **Định dạng Kết quả:**\n"
-#             "   - **Chỉ trả về một đối tượng JSON** mà không có thêm văn bản, giải thích, hoặc chú thích nào khác.\n"
-#             "   - **Bao gồm tất cả các trường trong JSON**, ngay cả khi chúng trống (`\"\"`).\n\n"
-#             "### Cấu trúc JSON (giá trị nên bằng tiếng Việt):\n\n"
-#             "{\n"
-#             '  "id_number": "",\n'
-#             '  "id_number_old": "",\n'
-#             '  "fullname": "",\n'
-#             '  "day_of_birth": "",\n'
-#             '  "sex": "",\n'
-#             '  "nationality": "",\n'
-#             '  "place_of_residence": "",\n'
-#             '  "place_of_origin": "",\n'
-#             '  "expiration_date": "",\n'
-#             '  "date_of_issue": ""\n'
-#             "}\n"
-#         )
-#         return context
 
-#     except Exception as e:
-#         logger.error(f"Lỗi tạo context người dùng: {e}")
-#         raise Exception("Lỗi tạo context người dùng")
+#     def run_inference(self, img1, img2):
+#         """Run the inference process on both images sequentially, and combine results."""
+#         # Process the first image
+#         result1, time1 = self.run_inference_single(img1)
+
+#         # Process the second image
+#         result2, time2 = self.run_inference_single(img2)
+
+#         # Combine the results
+#         combined_result = f"Image 1 Result: {result1}\nImage 2 Result: {result2}"
+#         total_time = time1 + time2
+#         torch.cuda.empty_cache()
+
+#         return combined_result, total_time
+
+
+# # Helper function to extract dates from text
+# def extract_dates(text):
+#     # Regular expression to find date-like patterns (dd/mm/yyyy or similar)
+#     date_pattern = r"(\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b)"
+#     dates = re.findall(date_pattern, text)
+#     if dates:
+#         return "\n".join(dates)
+#     return "No dates found"
+
+# # Create an instance of the EraXVLPipeline
+# pipeline = EraXVLPipeline(model_path="erax/EraX-VL-7B-V1")
+
+# # Define Gradio interface function
+# def ocr_demo(img1, img2):
+#     # Run inference on the images
+#     result, duration = pipeline.run_inference(img1, img2)
+
+#     # Extract dates from the combined result
+#     dates = extract_dates(result)
+#     torch.cuda.empty_cache()
+#     # Combine the OCR results with the extracted dates
+#     return f"Result:\n{result}\n\nExtracted Dates:\n{dates}\n\nProcessing Time: {duration:.2f} seconds"
+
+
+# # Define Gradio interface
+# iface = gr.Interface(
+#     fn=ocr_demo,
+#     inputs=[
+#         gr.Image(type="numpy", label="Image 1"),
+#         gr.Image(type="numpy", label="Image 2")
+#     ],
+#     outputs="text",
+#     title="Optical Character Recognition with Date Extraction",
+#     description="Upload two images, and the model will extract text using OCR for each image sequentially. Dates will be extracted from the text automatically.",
+#     live=True  # Automatically run when images are uploaded
+# )
+
+# # Launch Gradio demo
+# if __name__ == "__main__":
+#     torch.cuda.empty_cache()  # Clear CUDA cache
+#     iface.launch()

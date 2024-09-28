@@ -5,9 +5,10 @@ import re
 from typing import List
 import numpy as np
 import torch
-from app_utils.file_handler import save_image
+from app_utils.file_handler import save_image, scale_up_img
 from app_utils.logging import get_logger
-from app_utils.util import rotate_image
+from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
+from app_utils.util import calculate_expiration_date, rotate_image
 from config import SAVE_IMAGES
 from controller.detecter_controller import Detector
 from controller.llm_controller import LlmController
@@ -24,6 +25,7 @@ logger = get_logger(__name__)
 # Initialize controllers
 detector_controller = Detector()
 llm_controller = LlmController()
+orientation_engine = RapidOrientation()
 
 
 async def detect_and_preprocess_image(image_path: str, mat_sau: bool) -> np.ndarray:
@@ -46,10 +48,14 @@ async def detect_and_preprocess_image(image_path: str, mat_sau: bool) -> np.ndar
         image = await detector_controller.detect(image_path)
         if image is None:
             raise Exception("Failed to detect image.")
-        if mat_sau:
-            up_down_check = await detector_controller.detect_card_orientation(image)
-        else:
-            up_down_check = detector_controller.detect_face_orientation(image)
+        orientation_res, _ = orientation_engine(image)
+        print(orientation_res)
+        if orientation_res != 0 :
+            image = rotate_image(image, orientation_res)
+        # if mat_sau:
+        #     up_down_check = await detector_controller.detect_card_orientation(image)
+        # else:
+        #     up_down_check = detector_controller.detect_face_orientation(image)
         # if up_down_check:
         #     image = rotate_image(image, 180)
         return image
@@ -164,10 +170,14 @@ async def scan(image_paths: List[str]) -> dict:
     and returns the corrected information with processing time.
     """
     try:
-        start_time = time.time()
+        start_time = time.perf_counter()
         db_manager = g.db_manager
+        if not db_manager:
+            raise RuntimeError("Database manager not initialized.")
+
         # Process both images concurrently
         ocr_tasks = [process_image(path) for path in image_paths]
+        
         ocr_results = await asyncio.gather(*ocr_tasks)
 
         # Determine front and back images
@@ -182,8 +192,7 @@ async def scan(image_paths: List[str]) -> dict:
             "back_side_ocr": back_result["ocr_text"],
             "back_side_qr": back_result["qr_code_text"]
         }
-        if not db_manager:
-            raise RuntimeError("Database manager not initialized.")
+
 
         ocr_result_id = await db_manager.insert_ocr_result(combined_ocr_data)
 
@@ -198,16 +207,19 @@ async def scan(image_paths: List[str]) -> dict:
 
         llm_controller.set_model('qwen2.5')
         llm_response = await llm_controller.send_message()
-
+        print(llm_response)
         message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
-        message_json = json.loads(message_content)
-
-        processing_time = time.time() - start_time
+        # message_json = json.loads(message_content)
+        if message_content.get('date_of_expiration', '') == '':
+            day_of_birth = message_content.get  ('day_of_birth', '')
+            if day_of_birth:
+                expiration_date = calculate_expiration_date(day_of_birth)
+                message_content['date_of_expiration'] = expiration_date
+        processing_time = time.perf_counter() - start_time
         llm_response_with_time = {
-            "llm_response": message_json,
+            "llm_response": message_content,
             "processing_time_seconds": processing_time
         }
-
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -226,25 +238,22 @@ async def process_image(image_path: str) -> dict:
     try:
         image, mat_truoc = detector_controller.detect(image_path)
         if image is None:
-            raise ValueError(f"Failed to detect image at {image_path}.")
-        image_path = save_image(image, SAVE_IMAGES)
-        if mat_truoc:
-            up_down_check = detector_controller.detect_face_orientation(image)
-        else:
-            up_down_check = detector_controller.detect_card_orientation(image)
-
-        if up_down_check:
-            image = rotate_image(image, 180)
-
+            raise ValueError(f"Failed to detect image at {image_path}.")        
+        orientation_res, _ = orientation_engine(image)
+        orientation_res = float(orientation_res)
+        if orientation_res != 0 :
+            image = rotate_image(image, orientation_res)
+        image = scale_up_img(image, 512)
+        image_path = save_image(image, SAVE_IMAGES ,print_path = False )
         qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
         ocr_text_task = asyncio.to_thread(detector_controller.get_ocr().scan_image, image, ["package_ocr"])
         qr_code_text, ocr_text = await asyncio.gather(qr_code_text_task, ocr_text_task)
 
         return {
-            "ocr_text": await ocr_text,
-            "qr_code_text": await qr_code_text or " ",
+            "ocr_text":  await ocr_text,
+            "qr_code_text":  qr_code_text or " ",
             "mat_truoc": mat_truoc,
-            "image_path": image_path  # Include image path for later use
+            "image_path": image_path 
         }
 
     except Exception as e:
@@ -252,9 +261,28 @@ async def process_image(image_path: str) -> dict:
         raise
 
 
-def clean_message_content(message_content: str) -> str:
+
+def clean_message_content(message_content: str) -> dict:
     """
-    Cleans the JSON string by removing code block markers and extra spaces or new lines.
+    Extracts the JSON content from the message_content, cleans it, and returns it as a dictionary.
     """
-    cleaned_content = re.sub(r'^```json|```$', '', message_content.strip(), flags=re.MULTILINE)
-    return cleaned_content.strip()
+    # Use regex to extract content between ```json and ```
+    match = re.search(r'```json\s*(\{.*?\})\s*```', message_content, re.DOTALL)
+    if match:
+        json_content = match.group(1)
+    else:
+        # If not found, try to find any JSON object in the message_content
+        match = re.search(r'(\{.*?\})', message_content, re.DOTALL)
+        if match:
+            json_content = match.group(1)
+        else:
+            # No JSON content found
+            print("Không tìm thấy nội dung JSON trong tin nhắn.")
+            return {}
+    
+    # Try loading the json_content
+    try:
+        return json.loads(json_content)
+    except json.JSONDecodeError as e:
+        print(f"Lỗi khi phân tích chuỗi JSON: {e}")
+        raise e  # Optionally, re-raise the exception for further handling

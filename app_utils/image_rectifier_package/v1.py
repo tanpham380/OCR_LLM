@@ -58,6 +58,5 @@ class ImageRectify:
 
         is_front = detected_name == "front"
 
-        save_image(rotated_image)
 
         return rotated_image, is_front

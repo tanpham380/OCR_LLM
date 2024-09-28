@@ -313,7 +313,7 @@ def load_and_preprocess_image(image_input: Any) -> Tuple[np.ndarray, np.ndarray]
     except Exception as e:
         raise ImageProcessingError(f"Error loading and preprocessing image: {e}")
     
-def crop_image_qr(image: np.ndarray, detection: dict, margin: int = 20) -> np.ndarray:
+def crop_image_qr(image: np.ndarray, detection: dict, margin: int = 0) -> np.ndarray:
     """
     Tries to crop the QR code area from the image using polygon points first. 
     If it fails, falls back to using bounding box coordinates.
@@ -400,7 +400,7 @@ def crop_image_using_polygon(image: np.ndarray, detection_info: dict, margin: in
     return warped_qr
 
 
-def process_qr_image(img: np.ndarray, target_size: int = 478) -> np.ndarray:
+def process_qr_image(img: np.ndarray, target_size: int = 300) -> np.ndarray:
     """
     Resize the input image to fit within a square background of specified size while keeping the aspect ratio.
     Adds a white margin around the image.
@@ -477,3 +477,71 @@ def convert_to_silver(img: np.ndarray) -> np.ndarray:
     silver_img = cv2.cvtColor(normalized_gray, cv2.COLOR_GRAY2BGR)
 
     return silver_img
+
+
+def scale_up_img(img: np.ndarray, target_size: int = 1048) -> np.ndarray:
+    """
+    Scales up the image to a target size if it's smaller than the specified target size.
+    Keeps the color consistent (BGR format) during the process.
+    """
+    # Convert from BGR to RGB for PIL processing
+    img_original = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    
+    width, height = img_original.size
+    if width >= target_size and height >= target_size:
+        return img  # No scaling needed if the image is already large enough
+    
+    desired_size = (target_size, target_size)
+    aspect_ratio = min(
+        desired_size[0] / width,
+        desired_size[1] / height,
+    )
+    new_width = int(width * aspect_ratio)
+    new_height = int(height * aspect_ratio)
+    img_resized = img_original.resize(
+        (new_width, new_height), Image.Resampling.LANCZOS
+    )
+    
+    # Convert back from RGB to BGR for consistency with OpenCV format
+    img_resized_bgr = cv2.cvtColor(np.array(img_resized), cv2.COLOR_RGB2BGR)
+    
+    return img_resized_bgr
+
+
+# # Inside your process_image function:
+# image_height, image_width = Image.shape[:2]  # Get height and width
+# target_size = 478
+
+# if image_height < target_size or image_width < target_size:
+#     image = scale_up_img(image, target_size)
+
+
+
+def Enchane_Qr_image(img: np.ndarray) -> np.ndarray:
+    # Read the image
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Lightly increase contrast using CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced_contrast = clahe.apply(gray)
+
+    # Apply Gaussian Blur to reduce noise
+    blurred = cv2.GaussianBlur(enhanced_contrast, (3, 3), 0)
+
+    # Apply adaptive thresholding to handle varying lighting conditions
+    adaptive_thresh = cv2.adaptiveThreshold(
+        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
+    # Sharpen the image using a kernel
+    kernel = np.array([[0, -1, 0], [-1, 5,-1], [0, -1, 0]])
+    sharpened = cv2.filter2D(adaptive_thresh, -1, kernel)
+
+    # Optionally resize the image to enlarge the QR code
+    scale_percent = 175  # Increase by 175%
+    width = int(sharpened.shape[1] * scale_percent / 100)
+    height = int(sharpened.shape[0] * scale_percent / 100)
+    resized = cv2.resize(sharpened, (width, height), interpolation=cv2.INTER_LINEAR)
+
+    return resized

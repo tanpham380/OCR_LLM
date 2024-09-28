@@ -2,6 +2,7 @@
 import tempfile
 import os
 from dotenv import load_dotenv, find_dotenv
+import torch
 
 from app_utils.util import select_device
 
@@ -57,7 +58,9 @@ DEVICE = select_device()
 os.environ["RECOGNITION_BATCH_SIZE"] = "512"
 os.environ["DETECTOR_BATCH_SIZE"] = "36"
 os.environ["ORDER_BATCH_SIZE"] = "32"
-os.environ["RECOGNITION_STATIC_CACHE"] = "true"
+# os.environ["RECOGNITION_STATIC_CACHE"] = "true"
+# os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
+
 ##
 # torch._dynamo.config.capture_scalar_outputs = True
 # torch._dynamo.config.suppress_errors = True

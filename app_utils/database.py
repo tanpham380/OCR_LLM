@@ -48,9 +48,8 @@ class SQLiteManager:
             CREATE TABLE IF NOT EXISTS ocr_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 front_side_ocr TEXT,
-                front_side_qr TEXT,
+                qr_code_data TEXT,
                 back_side_ocr TEXT,
-                back_side_qr TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -82,23 +81,29 @@ class SQLiteManager:
         await conn.commit()
 
     async def insert_ocr_result(self, data: dict) -> int:
-        import json  # Ensure this import is present
+        front_qr_code_data = data.get("front_side_qr", "")
+        back_qr_code_data = data.get("back_side_qr", "")
+
+        qr_code_data = front_qr_code_data if front_qr_code_data else back_qr_code_data
+
+        if isinstance(qr_code_data, tuple):
+            qr_code_data = qr_code_data[0]
         conn = await self.get_connection()
+
         cursor = await conn.execute('''
             INSERT INTO ocr_results (
                 front_side_ocr,
-                front_side_qr,
-                back_side_ocr,
-                back_side_qr
-            ) VALUES (?, ?, ?, ?)
+                qr_code_data,
+                back_side_ocr
+            ) VALUES (?, ?, ?)
         ''', (
-            json.dumps(data.get('front_side_ocr')),  # Serialize to JSON string
-            data.get('front_side_qr'),
-            json.dumps(data.get('back_side_ocr')),   # Serialize to JSON string
-            data.get('back_side_qr')
+            json.dumps(data.get('front_side_ocr')),  # Serialize front_side_ocr to JSON
+            qr_code_data,  # Use the extracted string for qr_code_data
+            json.dumps(data.get('back_side_ocr')),   # Serialize back_side_ocr to JSON
         ))
         await conn.commit()
         return cursor.lastrowid
+
 
 
     async def insert_user_context(self, ocr_result_id: int, context: str):
