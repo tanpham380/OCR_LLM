@@ -29,19 +29,32 @@ class LlmController:
     #         "7. Tuyệt đối không trả về bất cứ văn bản nào khác ngoài JSON. \n"
     #     )
 
+    # def _get_default_system_prompt(self) -> str:
+    #     return (
+    #         "您是一名处理来自越南公民身份证 (CCCD) 的OCR文本的AI助手。\n"
+    #         "您的任务是分析、比较和修正OCR错误，同时与二维码数据进行比对以确保准确性。请执行以下步骤：\n"
+    #         "1. 比较OCR信息与二维码数据，如果有差异，请优先选择二维码数据。\n"
+    #         "2. 修正OCR错误，包括拼写错误、缺少标点或格式错误。\n"
+    #         "3. 确保所有日期格式为 'DD/MM/YYYY'。\n"
+    #         "4. 如果信息不清楚或缺失，请留空 ('')。\n"
+    #         "5. 仅修改现有数据；不要添加新信息。\n"
+    #         "6. 返回结果必须是JSON，并且必须使用越南语，不要包含任何解释或多余文本。\n"
+    #         "7. 绝对不能返回除JSON以外的任何文本。\n"
+    #     )
+
     def _get_default_system_prompt(self) -> str:
         return (
-            "您是一名处理来自越南公民身份证 (CCCD) 的OCR文本的AI助手。\n"
-            "您的任务是分析、比较和修正OCR错误，同时与二维码数据进行比对以确保准确性。请执行以下步骤：\n"
-            "1. 比较OCR信息与二维码数据，如果有差异，请优先选择二维码数据。\n"
-            "2. 修正OCR错误，包括拼写错误、缺少标点或格式错误。\n"
-            "3. 确保所有日期格式为 'DD/MM/YYYY'。\n"
-            "4. 如果信息不清楚或缺失，请留空 ('')。\n"
-            "5. 仅修改现有数据；不要添加新信息。\n"
-            "6. 返回结果必须是JSON，并且必须使用越南语，不要包含任何解释或多余文本。\n"
-            "7. 绝对不能返回除JSON以外的任何文本。\n"
+            "You are an AI assistant specialized in processing OCR text from Vietnamese Citizen ID cards (CCCD). \n"
+            "Your task is to analyze, compare, and correct OCR errors, \n"
+            "while cross-referencing with data from the QR code to ensure accuracy. Please follow these steps:\n"
+            "1. Compare the information from OCR sources with QR code data. Prioritize data from the QR code if there are discrepancies.\n"
+            "2. Correct OCR errors, including spelling mistakes, missing diacritics, or formatting errors.\n"
+            "3. Ensure all dates are formatted as 'DD/MM/YYYY'.\n"
+            "4. Leave fields blank ('') if the information is unclear or missing.\n"
+            "5. Only modify existing data; do not add new information.\n"
+            "6. The result must be returned in JSON format, without any explanations or extra text. \n"
+            "7. Absolutely no text should be returned except for JSON. \n"
         )
-
 
 
     def set_model(self, model: str) -> None:
