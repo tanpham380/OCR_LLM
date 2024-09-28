@@ -205,7 +205,10 @@ async def scan(image_paths: List[str]) -> dict:
         context = await asyncio.to_thread(llm_controller.set_user_context, combined_ocr_data)
         await db_manager.insert_user_context(ocr_result_id, context)
 
-        llm_controller.set_model('qwen2.5')
+        # llm_controller.set_model('qwen2.5')
+        llm_controller.set_model('llama3.2:3b')
+
+        
         llm_response = await llm_controller.send_message()
         print(llm_response)
         message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
