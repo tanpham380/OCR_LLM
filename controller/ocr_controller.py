@@ -113,7 +113,12 @@ class OcrController:
             Exception: If OCR or image processing fails.
         """
         try:
-            img_original = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            
+            # _, img_black_white = cv2.threshold(img_gray, 128, 255, cv2.THRESH_BINARY)
+             
+            img_original = Image.fromarray(img_gray)
+            # img_original = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB) , mode="L")
             # img_resized = img_original.resize((1000, 1000), Image.Resampling.LANCZOS)
             # background_size = (1280, 1080)
             # new_img = Image.new("RGB", background_size, (255, 255, 255))
