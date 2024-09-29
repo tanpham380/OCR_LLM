@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 import re
 from typing import List
 import numpy as np
@@ -8,7 +9,7 @@ import torch
 from app_utils.file_handler import save_image, scale_up_img
 from app_utils.logging import get_logger
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
-from app_utils.util import calculate_expiration_date, rotate_image
+from app_utils.util import calculate_expiration_date, calculate_sex_from_id, rotate_image
 from config import SAVE_IMAGES
 from controller.detecter_controller import Detector
 from controller.llm_controller import LlmController
@@ -18,7 +19,7 @@ import time
 import re
 import torch
 
-from quart import current_app, g
+from quart import current_app, g, url_for
 
 logger = get_logger(__name__)
 
@@ -214,14 +215,21 @@ async def scan(image_paths: List[str]) -> dict:
         message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
         # message_json = json.loads(message_content)
         if message_content.get('date_of_expiration', '') == '':
-            day_of_birth = message_content.get  ('day_of_birth', '')
+            day_of_birth = message_content.get('day_of_birth', '')
             if day_of_birth:
                 expiration_date = calculate_expiration_date(day_of_birth)
                 message_content['date_of_expiration'] = expiration_date
+        if message_content.get('nationality', '') == '':
+            message_content['nationality'] = "Việt Nam"
+        if message_content.get('sex', '') == '':
+            id_number = message_content.get('id_number', '')
+            message_content['sex'] = calculate_sex_from_id(id_number)
         processing_time = time.perf_counter() - start_time
         llm_response_with_time = {
             "llm_response": message_content,
-            "processing_time_seconds": processing_time
+            "processing_time_seconds": processing_time,
+            "mat_truoc" : url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
+            "mat_sau" : url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
         }
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -246,7 +254,7 @@ async def process_image(image_path: str) -> dict:
         orientation_res = float(orientation_res)
         if orientation_res != 0 :
             image = rotate_image(image, orientation_res)
-        image = scale_up_img(image, 512)
+        image = scale_up_img(image, 768)
         image_path = save_image(image, SAVE_IMAGES ,print_path = False )
         qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
         ocr_text_task = asyncio.to_thread(detector_controller.get_ocr().scan_image, image, ["package_ocr"])

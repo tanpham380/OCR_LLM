@@ -22,10 +22,10 @@ logger = get_logger(__name__)
 
 class OcrController:
     def __init__(self) -> None:
-        self.language_list = ["vi" ] #, "en"
+        self.language_list = ["vi"  , "en"] #, "en"
         # self.reader = easyocr.Reader(self.language_list, gpu=True)
         # self.det_processor, self.det_model = load_det_processor(), load_det_model()
-        self.det_processor = TextDect_withRapidocr()
+        self.det_processor = TextDect_withRapidocr(text_score = 0.4 , det_use_cuda = False)
         self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
         # self.rec_model.decoder.model = torch.compile(self.rec_model.decoder.model)
 

@@ -199,9 +199,98 @@ class LlmController:
     #         logger.error(f"Lỗi tạo context người dùng: {e}")
     #         raise Exception("Lỗi tạo context người dùng")
 
+    # def _generate_user_context(self, ocr_results: Dict[str, Any]) -> str:
+    #     try:
+    #         front_ocr = (
+    #             ocr_results.get("front_side_ocr", {})
+    #             .get("package_ocr", "")
+    #             .replace("\\", "")
+    #         )
+    #         back_ocr = (
+    #             ocr_results.get("back_side_ocr", {})
+    #             .get("package_ocr", "")
+    #             .replace("\\", "")
+    #         )
 
+    #         front_qr_code_data = ocr_results.get("front_side_qr", "")
+    #         back_qr_code_data = ocr_results.get("back_side_qr", "")
+
+    #         qr_code_data = (
+    #             front_qr_code_data.strip()
+    #             if front_qr_code_data.strip()
+    #             else back_qr_code_data.strip()
+    #         )
+    #         if isinstance(qr_code_data, tuple):
+    #             qr_code_data = str(qr_code_data)
+
+    #         # Analyze QR code data
+    #         qr_parts = qr_code_data.split("|")
+    #         id_number = qr_parts[0] if len(qr_parts) > 0 else ""
+    #         id_number_old = qr_parts[1] if len(qr_parts) > 1 else ""
+    #         fullname = qr_parts[2] if len(qr_parts) > 2 else ""
+    #         day_of_birth = qr_parts[3] if len(qr_parts) > 3 else ""
+    #         sex = qr_parts[4] if len(qr_parts) > 4 else ""
+    #         place_of_residence = qr_parts[5] if len(qr_parts) > 5 else ""
+    #         date_of_issue = qr_parts[6] if len(qr_parts) > 6 else ""
+
+    #         context = (
+    #             "Data extracted from OCR and the QR code of the Vietnamese Citizen ID card (CCCD):\n\n"
+    #             "### Data from front-side OCR:\n"
+    #             f"{front_ocr}\n\n"
+    #             "### Data from back-side OCR:\n"
+    #             f"{back_ocr}\n\n"
+    #             "### Data from the QR code:\n"
+    #             f"{qr_code_data}\n\n"
+    #             "The data from the QR code is formatted as follows, with the values corresponding to:\n"
+    #             f"- ID number (id_number): {id_number}\n"
+    #             f"- Old ID number (id_number_old): {id_number_old}\n"
+    #             f"- Full name (fullname): {fullname}\n"
+    #             f"- Date of birth (day_of_birth): {day_of_birth} (format DDMMYYYY)\n"
+    #             f"- Sex (sex): {sex}\n"
+    #             f"- Place of residence (place_of_residence): {place_of_residence}\n"
+    #             f"- Date of issue (date_of_issue): {date_of_issue} (format DDMMYYYY)\n\n"
+    #             "Please analyze and correct the information based on the following guidelines:\n"
+    #             "1. Compare the data from OCR and the QR code; prioritize the QR code if there's a discrepancy. If some information is missing from the QR code, use the data from OCR.\n"
+    #             "2. Correct spelling, Vietnamese diacritical marks, or formatting errors in all fields.\n"
+    #             "3. Ensure all dates follow the DD/MM/YYYY format.\n"
+    #             "4. Leave blank ('') if the information is completely indiscernible. If any information can be inferred from the OCR or QR code data, use it.\n"
+    #             "Return the result as JSON, structured with the following 10 fields:\n"
+    #             "{\n"
+    #             '  "id_number": "<Số CCCD | Mã số CCCD | Số định danh cá nhân | Số CMTND | Số CMND | ID number>",\n'
+    #             '  "id_number_old": "<Số CMND | Old ID number>",\n'
+    #             '  "fullname": "<Họ và tên | Full name>",\n'
+    #             '  "day_of_birth": "<Ngày sinh | Date of birth (DD/MM/YYYY)>",\n'
+    #             '  "sex": "<Giới tính | Sex>",\n'
+    #             '  "nationality": "<Quốc tịch | Nationality>",\n'
+    #             '  "place_of_residence": "<Nơi thường trú | Place of residence>",\n'
+    #             '  "place_of_origin": "<Quê quán | Place of origin>",\n'
+    #             '  "date_of_expiration": "<Ngày hết hạn | Date of expiry (DD/MM/YYYY)>",\n'
+    #             '  "date_of_issue": "<Ngày cấp | Date of issue (DD/MM/YYYY)>"\n'
+    #             "}\n\n"
+    #             "Notes:\n"
+    #             "- Ensure that the value for 'Place of residence' is complete (prioritize the QR code), even if it spans multiple lines or duplicates other information.\n"
+    #             "- When encountering phrases like 'Có giá trị đến: [ngày]' or 'Date of expiry', recognize that this is the 'date_of_expiration' and separate it from 'place_of_residence'. 'Date of expiry' can appear on the front or back of the CCCD.\n"
+    #             "- If the back of the CCCD has one date, it's the 'date_of_issue'. If there are two dates, they are the 'date_of_issue' and 'date_of_expiration'; the issue date will be earlier than the expiry date.\n"
+    #             "- Include all fields in the JSON, even if they are empty.\n"
+    #             "- Do not include any explanations, just JSON text.\n"
+    #             "- Prioritize accuracy, correct spelling, and formatting.\n"
+    #             "- Ensure all dates are in the DD/MM/YYYY format.\n"
+    #             "- Pay attention to unwanted lines; combine or split information according to the context.\n"
+    #             "- If the information is not in the QR code, use the OCR data.\n"
+    #             "- Understand and arrange the administrative divisions in Vietnam from smallest to largest: Hamlet/Neighborhood < Commune/Ward/Town < District/Town/Provincial City < Province/Central City.\n"
+    #             "- When outputting 'place_of_origin' and 'place_of_residence', ensure they are arranged in order from the smallest to largest administrative levels.\n"
+    #             "- Ensure that 'nationality' is correctly spelled with proper diacritical marks for any country (e.g., 'Việt Nam' instead of 'Vietnam', 'Cộng hòa Séc' instead of 'Czech Republic').\n"
+    #             "- Pay attention to the MRZ (Machine Readable Zone) lines on the back (lines like 'IDVNM...'); use them to identify 'id_number' and other information if necessary.\n"
+    #         )
+    #         return context
+
+    #     except Exception as e:
+    #         logger.error(f"Error generating user context: {e}")
+    #         raise Exception("Error generating user context")
     def _generate_user_context(self, ocr_results: Dict[str, Any]) -> str:
         try:
+            import re
+
             front_ocr = (
                 ocr_results.get("front_side_ocr", {})
                 .get("package_ocr", "")
@@ -212,6 +301,12 @@ class LlmController:
                 .get("package_ocr", "")
                 .replace("\\", "")
             )
+
+            # Extract MRZ data from back_ocr
+            # MRZ typically consists of two or three lines of uppercase letters, numbers, and '<' symbols
+            mrz_pattern = re.compile(r'^[A-Z0-9<]{30,}$', re.MULTILINE)
+            mrz_matches = mrz_pattern.findall(back_ocr)
+            mrz_data = "\n".join(mrz_matches)
 
             front_qr_code_data = ocr_results.get("front_side_qr", "")
             back_qr_code_data = ocr_results.get("back_side_qr", "")
@@ -240,6 +335,8 @@ class LlmController:
                 f"{front_ocr}\n\n"
                 "### Data from back-side OCR:\n"
                 f"{back_ocr}\n\n"
+                "### MRZ data extracted from back-side OCR:\n"
+                f"{mrz_data}\n\n"
                 "### Data from the QR code:\n"
                 f"{qr_code_data}\n\n"
                 "The data from the QR code is formatted as follows, with the values corresponding to:\n"
@@ -251,10 +348,10 @@ class LlmController:
                 f"- Place of residence (place_of_residence): {place_of_residence}\n"
                 f"- Date of issue (date_of_issue): {date_of_issue} (format DDMMYYYY)\n\n"
                 "Please analyze and correct the information based on the following guidelines:\n"
-                "1. Compare the data from OCR and the QR code; prioritize the QR code if there's a discrepancy. If some information is missing from the QR code, use the data from OCR.\n"
-                "2. Correct spelling, Vietnamese diacritical marks, or formatting errors.\n"
+                "1. Compare the data from OCR, MRZ, and the QR code; prioritize the QR code if there's a discrepancy. If some information is missing from the QR code, use the data from MRZ or OCR in that order.\n"
+                "2. Correct spelling, Vietnamese diacritical marks, or formatting errors in all fields.\n"
                 "3. Ensure all dates follow the DD/MM/YYYY format.\n"
-                "4. Leave blank ('') if the information is completely indiscernible. If any information can be inferred from the OCR or QR code data, use it.\n"
+                "4. Leave blank ('') if the information is completely indiscernible. If any information can be inferred from the OCR, MRZ, or QR code data, use it.\n"
                 "Return the result as JSON, structured with the following 10 fields:\n"
                 "{\n"
                 '  "id_number": "<Số CCCD | Mã số CCCD | Số định danh cá nhân | Số CMTND | Số CMND | ID number>",\n'
@@ -270,18 +367,18 @@ class LlmController:
                 "}\n\n"
                 "Notes:\n"
                 "- Ensure that the value for 'Place of residence' is complete (prioritize the QR code), even if it spans multiple lines or duplicates other information.\n"
-                "- When encountering phrases like 'Valid until: [date]' or 'Date of expiry', recognize that this is the 'date_of_expiration' and separate it from 'place_of_residence'. 'Date of expiry' can appear on the front or back of the CCCD.\n"
+                "- When encountering phrases like 'Có giá trị đến: [ngày]' or 'Date of expiry', recognize that this is the 'date_of_expiration' and separate it from 'place_of_residence'. 'Date of expiry' can appear on the front or back of the CCCD.\n"
                 "- If the back of the CCCD has one date, it's the 'date_of_issue'. If there are two dates, they are the 'date_of_issue' and 'date_of_expiration'; the issue date will be earlier than the expiry date.\n"
                 "- Include all fields in the JSON, even if they are empty.\n"
                 "- Do not include any explanations, just JSON text.\n"
                 "- Prioritize accuracy, correct spelling, and formatting.\n"
                 "- Ensure all dates are in the DD/MM/YYYY format.\n"
                 "- Pay attention to unwanted lines; combine or split information according to the context.\n"
-                "- If the information is not in the QR code, use the OCR data.\n"
+                "- If the information is not in the QR code, use the MRZ data or OCR data.\n"
                 "- Understand and arrange the administrative divisions in Vietnam from smallest to largest: Hamlet/Neighborhood < Commune/Ward/Town < District/Town/Provincial City < Province/Central City.\n"
                 "- When outputting 'place_of_origin' and 'place_of_residence', ensure they are arranged in order from the smallest to largest administrative levels.\n"
-                "- Note that 'nationality' may be obtained from OCR data if not available in the QR code.\n"
-                "- Pay attention to the MRZ (Machine Readable Zone) lines on the back (lines like 'IDVNM...'); use them to identify 'id_number' and other information if necessary.\n"
+                "- Ensure that 'nationality' is correctly spelled with proper diacritical marks for any country (e.g., 'Việt Nam' instead of 'Vietnam', 'Cộng hòa Séc' instead of 'Czech Republic').\n"
+                "- Use the MRZ data to extract 'id_number', 'fullname', 'day_of_birth', 'sex', and 'nationality' if they are missing from the QR code and OCR data.\n"
             )
             return context
 
