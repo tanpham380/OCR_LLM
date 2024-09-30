@@ -12,7 +12,7 @@ sdist/
 var/
 *.egg
 MANIFEST
-
+app_utils/weights/
 # PyInstaller / Nuitka
 build/
 develop-eggs/

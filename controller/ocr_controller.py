@@ -1,10 +1,11 @@
+import io
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
 import torch
 # import easyocr
 from typing import List, Dict, Any, Optional
-from app_utils.file_handler import load_and_preprocess_image, save_image
+from app_utils.file_handler import concatenate_images, convert_image, crop_text_regions, load_and_preprocess_image, save_image
 from app_utils.logging import get_logger
 from app_utils.ocr_package.model.detection.text_detect import TextDect_withRapidocr
 from app_utils.ocr_package.ocr import run_ocr
@@ -16,17 +17,20 @@ from app_utils.ocr_package.model.recognition.processor import (
     load_processor as load_rec_processor,
 )
 from app_utils.ocr_package.model.recognition.model import load_model as load_rec_model
+from controller.llm_vison_future import VinternOCRModel
 
 logger = get_logger(__name__)
 
 
 class OcrController:
     def __init__(self) -> None:
-        self.language_list = ["vi"  , "en"] #, "en"
+        self.language_list = ["vi" ] #, "en"
         # self.reader = easyocr.Reader(self.language_list, gpu=True)
         # self.det_processor, self.det_model = load_det_processor(), load_det_model()
         self.det_processor = TextDect_withRapidocr(text_score = 0.4 , det_use_cuda = False)
-        self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
+        self.vintern_ocr = VinternOCRModel()
+
+        # self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
         # self.rec_model.decoder.model = torch.compile(self.rec_model.decoder.model)
 
     async def scan_image(
@@ -66,82 +70,33 @@ class OcrController:
                     raise Exception(f"Error during scan_image: {e}")
         return results
 
-    # async def _scan_with_easyocr(self, img: np.ndarray) -> str:
-    #     """
-    #     Performs OCR on the image using EasyOCR.
-
-    #     Args:
-    #         img (np.ndarray): Image array.
-
-    #     Returns:
-    #         str: Extracted text.
-
-    #     Raises:
-    #         Exception: If OCR fails.
-    #     """
-    #     try:
-    #         results = self.reader.readtext(
-    #             img,
-    #             detail=1,
-    #             contrast_ths=0.7,
-    #             adjust_contrast=0.5,
-    #             text_threshold=0.6,
-    #             link_threshold=0.4,
-    #             decoder="wordbeamsearch",
-    #             paragraph=False,
-    #         )
-
-    #         if not results:
-    #             return ""
-
-    #         ocr_str = " ".join(result[1] for result in results)
-    #         return ocr_str
-    #     except Exception as e:
-    #         raise Exception(f"Error during EasyOCR: {e}")
-
+     
     async def _scan_with_package_ocr(self, img: np.ndarray) -> str:
         """
         Performs OCR on the image using package OCR methods.
-
-        Args:
-            img (np.ndarray): Image array.
-
-        Returns:
-            str: Extracted text.
-
-        Raises:
-            Exception: If OCR or image processing fails.
         """
         try:
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            detection_results = self.det_processor.detect(img_gray)
+            print(detection_results)
+            if not isinstance(detection_results, list) or not detection_results:
+                raise ValueError("Detection results should be a non-empty list of bounding boxes")
             
-            # _, img_black_white = cv2.threshold(img_gray, 128, 255, cv2.THRESH_BINARY)
-             
-            img_original = Image.fromarray(img_gray)
-            # img_original = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB) , mode="L")
-            # img_resized = img_original.resize((1000, 1000), Image.Resampling.LANCZOS)
-            # background_size = (1280, 1080)
-            # new_img = Image.new("RGB", background_size, (255, 255, 255))
-            # paste_position = (
-            #     (background_size[0] - img_resized.width) // 2,
-            #     (background_size[1] - img_resized.height) // 2,
-            # )
-            # new_img.paste(img_resized, paste_position)
-            predictions = run_ocr(
-                [img_original],
-                [self.language_list],
-                self.det_processor,
-                self.rec_model,
-                self.rec_processor,
-            )
-            image_with_boxes = self.draw_packages_ocr_box(img_original, predictions)
-            save_image(image_with_boxes)
-            formatted_text = "\n".join(line.text for line in predictions[0].text_lines)            
-            return formatted_text
+            cropped_images = crop_text_regions(img, detection_results)
+            if not cropped_images:
+                raise ValueError("No valid text regions were detected in the image")
+
+            concatenated_image = concatenate_images(cropped_images, direction='vertical')
+            save_image(concatenated_image)
+            if concatenated_image is None:
+                raise ValueError("Failed to concatenate cropped images")
+            
+            response = self.vintern_ocr.process_image(concatenated_image)
+            print(response)
+            return response
 
         except Exception as e:
-            raise Exception(f"Error during package OCR: {e}")
-
+            raise Exception(f"Error during package OCR: {str(e)}")
 
     def draw_packages_ocr_box(self, img: Image.Image, predictions) -> Image.Image:
         """
@@ -186,3 +141,56 @@ class OcrController:
 
 
 
+
+
+
+    # async def _scan_with_package_ocr(self, img: np.ndarray) -> str:
+    #     """
+    #     Performs OCR on the image using package OCR methods.
+
+    #     Args:
+    #         img (np.ndarray): Image array.
+
+    #     Returns:
+    #         str: Extracted text.
+
+    #     Raises:
+    #         Exception: If OCR or image processing fails.
+    #     """
+    #     try:
+    #         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            
+    #         # _, img_black_white = cv2.threshold(img_gray, 128, 255, cv2.THRESH_BINARY)
+             
+    #         img_original = Image.fromarray(img_gray)
+    #         # img_original = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB) , mode="L")
+    #         # img_resized = img_original.resize((1000, 1000), Image.Resampling.LANCZOS)
+    #         # background_size = (1280, 1080)
+    #         # new_img = Image.new("RGB", background_size, (255, 255, 255))
+    #         # paste_position = (
+    #         #     (background_size[0] - img_resized.width) // 2,
+    #         #     (background_size[1] - img_resized.height) // 2,
+    #         # )
+    #         # new_img.paste(img_resized, paste_position)
+    #         predictions = run_ocr(
+    #             [img_original],
+    #             [self.language_list],
+    #             self.det_processor,
+    #             self.rec_model,
+    #             self.rec_processor,
+    #         )
+    #         image_with_boxes = self.draw_packages_ocr_box(img_original, predictions)
+    #         save_image(image_with_boxes)
+    #         formatted_text = "\n".join(line.text for line in predictions[0].text_lines)            
+    #         return formatted_text
+
+    #     except Exception as e:
+    #         raise Exception(f"Error during package OCR: {e}")
+    
+    
+def batch_images(images: list, batch_size: int = 5) -> list:
+    """
+    Splits the images into batches of a given size.
+    """
+    for i in range(0, len(images), batch_size):
+        yield images[i:i + batch_size]

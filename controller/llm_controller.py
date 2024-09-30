@@ -352,6 +352,7 @@ class LlmController:
                 "2. Correct spelling, Vietnamese diacritical marks, or formatting errors in all fields.\n"
                 "3. Ensure all dates follow the DD/MM/YYYY format.\n"
                 "4. Leave blank ('') if the information is completely indiscernible. If any information can be inferred from the OCR, MRZ, or QR code data, use it.\n"
+                "5. Ensure that the value for 'sex' is written out fully (e.g., 'Nam' instead of 'N'). \n"
                 "Return the result as JSON, structured with the following 10 fields:\n"
                 "{\n"
                 '  "id_number": "<Số CCCD | Mã số CCCD | Số định danh cá nhân | Số CMTND | Số CMND | ID number>",\n'
@@ -361,9 +362,10 @@ class LlmController:
                 '  "sex": "<Giới tính | Sex>",\n'
                 '  "nationality": "<Quốc tịch | Nationality>",\n'
                 '  "place_of_residence": "<Nơi thường trú | Place of residence>",\n'
-                '  "place_of_origin": "<Quê quán | Place of origin>",\n'
+                '  "place_of_origin": "<Quê quán | Place of origin | place of birth | Nơi Đăng kí Khai sinh >",\n'
                 '  "date_of_expiration": "<Ngày hết hạn | Date of expiry (DD/MM/YYYY)>",\n'
                 '  "date_of_issue": "<Ngày cấp | Date of issue (DD/MM/YYYY)>"\n'
+                '  "place_of_issue": "<Nơi cấp | place of issue >"\n'
                 "}\n\n"
                 "Notes:\n"
                 "- Ensure that the value for 'Place of residence' is complete (prioritize the QR code), even if it spans multiple lines or duplicates other information.\n"
@@ -379,6 +381,7 @@ class LlmController:
                 "- When outputting 'place_of_origin' and 'place_of_residence', ensure they are arranged in order from the smallest to largest administrative levels.\n"
                 "- Ensure that 'nationality' is correctly spelled with proper diacritical marks for any country (e.g., 'Việt Nam' instead of 'Vietnam', 'Cộng hòa Séc' instead of 'Czech Republic').\n"
                 "- Use the MRZ data to extract 'id_number', 'fullname', 'day_of_birth', 'sex', and 'nationality' if they are missing from the QR code and OCR data.\n"
+                "- Place of issue start with 'Bộ Công An' or 'CỤC TRƯỞNG CỤC CẢNH SÁT QUẢN LÝ HÀNH CHÍNH VỀ TRẬT TỰ XÃ HỘI' \n"
             )
             return context
 

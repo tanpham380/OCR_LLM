@@ -202,41 +202,41 @@ async def scan(image_paths: List[str]) -> dict:
             db_manager.insert_image(ocr_result_id, 'back', back_result["image_path"])
         )
 
-        # LLM processing
-        context = await asyncio.to_thread(llm_controller.set_user_context, combined_ocr_data)
-        await db_manager.insert_user_context(ocr_result_id, context)
+        # # LLM processing
+        # context = await asyncio.to_thread(llm_controller.set_user_context, combined_ocr_data)
+        # await db_manager.insert_user_context(ocr_result_id, context)
 
-        llm_controller.set_model('qwen2.5')
-        # llm_controller.set_model('llama3.2:3b')
+        # llm_controller.set_model('qwen2.5')
+        # # llm_controller.set_model('llama3.2:3b')
 
         
-        llm_response = await llm_controller.send_message()
-        print(llm_response)
-        message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
-        # message_json = json.loads(message_content)
-        if message_content.get('date_of_expiration', '') == '':
-            day_of_birth = message_content.get('day_of_birth', '')
-            if day_of_birth:
-                expiration_date = calculate_expiration_date(day_of_birth)
-                message_content['date_of_expiration'] = expiration_date
-        if message_content.get('nationality', '') == '':
-            message_content['nationality'] = "Việt Nam"
-        if message_content.get('sex', '') == '':
-            id_number = message_content.get('id_number', '')
-            message_content['sex'] = calculate_sex_from_id(id_number)
-        processing_time = time.perf_counter() - start_time
-        llm_response_with_time = {
-            "llm_response": message_content,
-            "processing_time_seconds": processing_time,
-            "mat_truoc" : url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
-            "mat_sau" : url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
-        }
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # llm_response = await llm_controller.send_message()
+        # print(llm_response)
+        # message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
+        # # message_json = json.loads(message_content)
+        # if message_content.get('date_of_expiration', '') == '':
+        #     day_of_birth = message_content.get('day_of_birth', '')
+        #     if day_of_birth:
+        #         expiration_date = calculate_expiration_date(day_of_birth)
+        #         message_content['date_of_expiration'] = expiration_date
+        # if message_content.get('nationality', '') == '':
+        #     message_content['nationality'] = "Việt Nam"
+        # if message_content.get('sex', '') == '':
+        #     id_number = message_content.get('id_number', '')
+        #     message_content['sex'] = calculate_sex_from_id(id_number)
+        # processing_time = time.perf_counter() - start_time
+        # llm_response_with_time = {
+        #     "llm_response": message_content,
+        #     "processing_time_seconds": processing_time,
+        #     "mat_truoc" : url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
+        #     "mat_sau" : url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
+        # }
+        # if torch.cuda.is_available():
+        #     torch.cuda.empty_cache()
 
-        await db_manager.insert_scan_result(llm_response_with_time)
+        # await db_manager.insert_scan_result(llm_response_with_time)
 
-        return llm_response_with_time
+        return combined_ocr_data
 
     except Exception as e:
         logger.error(f"An error occurred during the scanning process: {e}")
@@ -247,6 +247,7 @@ async def process_image(image_path: str) -> dict:
     Processes a single ID card image for OCR, QR code detection, and orientation correction.
     """
     try:
+
         image, mat_truoc = detector_controller.detect(image_path)
         if image is None:
             raise ValueError(f"Failed to detect image at {image_path}.")        
@@ -254,7 +255,8 @@ async def process_image(image_path: str) -> dict:
         orientation_res = float(orientation_res)
         if orientation_res != 0 :
             image = rotate_image(image, orientation_res)
-        image = scale_up_img(image, 768)
+        
+        image = scale_up_img(image, 512)
         image_path = save_image(image, SAVE_IMAGES ,print_path = False )
         qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
         ocr_text_task = asyncio.to_thread(detector_controller.get_ocr().scan_image, image, ["package_ocr"])
