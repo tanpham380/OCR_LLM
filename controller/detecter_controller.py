@@ -62,11 +62,15 @@ class Detector:
         """
         try:
             img, _ = load_and_preprocess_image(img_path)
-
+            if img is None:
+                raise Exception("Failed to load or preprocess the image.")
             detections, is_front = self.card_detecter.detect(img)
+            if detections is None:
+                return img
             return detections, is_front
         except Exception as e:
             raise e
+            
 
     # def read_QRcode(self, image: np.ndarray) -> str:
     #     """

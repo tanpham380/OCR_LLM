@@ -22,25 +22,11 @@ class ImageRectify:
         """Process the normal YOLO model to get bounding box."""
         result = self.CORNER_MODEL(image)[0]
         if not result.boxes: 
-            return None, None
+            return image, False
         class_index = int(result.boxes.cls[0])  
         detected_name = result.names[class_index] 
         boxes = result.boxes.xyxy.cpu().numpy() 
         return boxes, detected_name
-
-    # def process_obb_yolo(self, image: np.ndarray) -> Tuple[float]:
-    #     """Process the OBB YOLO model to calculate the angle."""
-    #     results = self.ANGLE_MODEL(image)[0]
-    #     if not hasattr(results, 'obb') or results.obb is None:
-    #         return 0
-    #     obb = results.obb
-    #     data = obb.data.cpu().numpy()
-    #     for i, box in enumerate(data):
-    #         _, _, _, _, rotation_radian = obb.xywhr[i].cpu().numpy()
-    #         angle_deg = np.degrees(rotation_radian)
-    #         return angle_deg
-
-    #     return 0
 
     def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, bool]]:
         """Detect and align the ID card using both YOLO models."""

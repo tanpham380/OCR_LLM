@@ -102,32 +102,6 @@ class OrtInferSession:
         if cur_device == "GPU" and EP.CUDA_EP.value in self.had_providers:
             return True
 
-        self.logger.warning(
-            "%s is not in available providers (%s). Use %s inference by default.",
-            EP.CUDA_EP.value,
-            self.had_providers,
-            self.had_providers[0],
-        )
-        self.logger.info("!!!Recommend to use rapidocr_paddle for inference on GPU.")
-        self.logger.info(
-            "(For reference only) If you want to use GPU acceleration, you must do:"
-        )
-        self.logger.info(
-            "First, uninstall all onnxruntime pakcages in current environment."
-        )
-        self.logger.info(
-            "Second, install onnxruntime-gpu by `pip install onnxruntime-gpu`."
-        )
-        self.logger.info(
-            "\tNote the onnxruntime-gpu version must match your cuda and cudnn version."
-        )
-        self.logger.info(
-            "\tYou can refer this link: https://onnxruntime.ai/docs/execution-providers/CUDA-EP.html"
-        )
-        self.logger.info(
-            "Third, ensure %s is in available providers list. e.g. ['CUDAExecutionProvider', 'CPUExecutionProvider']",
-            EP.CUDA_EP.value,
-        )
         return False
 
     def _check_dml(self) -> bool:

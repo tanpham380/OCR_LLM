@@ -1,41 +1,36 @@
 import io
 import cv2
 import numpy as np
-from PIL import Image, ImageEnhance
+from PIL import Image
+from typing import List, Dict, Any
+
 import torch
-# import easyocr
-from typing import List, Dict, Any, Optional
-from app_utils.file_handler import concatenate_images, convert_image, crop_text_regions, load_and_preprocess_image, save_image
+from app_utils.bbox_fix import is_mrz, merge_overlapping_bboxes
+from app_utils.file_handler import load_and_preprocess_image
 from app_utils.logging import get_logger
 from app_utils.ocr_package.model.detection.text_detect import TextDect_withRapidocr
 from app_utils.ocr_package.ocr import run_ocr
-# from app_utils.ocr_package.model.detection.model import (
-#     load_model as load_det_model,
-#     load_processor as load_det_processor,
-# )
+
 from app_utils.ocr_package.model.recognition.processor import (
     load_processor as load_rec_processor,
 )
 from app_utils.ocr_package.model.recognition.model import load_model as load_rec_model
+from PIL import Image
+
 from controller.llm_vison_future import VinternOCRModel
 
 logger = get_logger(__name__)
 
-
+import asyncio
 class OcrController:
     def __init__(self) -> None:
-        self.language_list = ["vi" ] #, "en"
-        # self.reader = easyocr.Reader(self.language_list, gpu=True)
-        # self.det_processor, self.det_model = load_det_processor(), load_det_model()
-        self.det_processor = TextDect_withRapidocr(text_score = 0.4 , det_use_cuda = False)
+        self.language_list = ["vi" , "en" ]
+        self.det_processor = TextDect_withRapidocr(text_score = 0.4 , det_use_cuda = True)
         self.vintern_ocr = VinternOCRModel()
 
-        # self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
-        # self.rec_model.decoder.model = torch.compile(self.rec_model.decoder.model)
+        self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
 
-    async def scan_image(
-        self, image_input: Any, methods: List[str] = ["easyocr", "package_ocr"]
-    ) -> Dict[str, Any]:
+    async def scan_image(self, image_input: Any, methods: List[str] = [ "package_ocr"] , mat_sau: bool = False ) -> Dict[str, Any]:
         """
         Scans the provided image using specified OCR methods.
 
@@ -55,7 +50,6 @@ class OcrController:
 
         results = {}
         ocr_methods = {
-            # "easyocr": self._scan_with_easyocr,
             "package_ocr": self._scan_with_package_ocr,
         }
 
@@ -65,39 +59,43 @@ class OcrController:
                     img_to_use = (
                         original_img if method == "package_ocr" else processed_img
                     )
-                    results[method] = await ocr_methods[method](img_to_use)
+                    results[method] = await ocr_methods[method](img_to_use , mat_sau)
                 except Exception as e:
                     raise Exception(f"Error during scan_image: {e}")
         return results
 
      
-    async def _scan_with_package_ocr(self, img: np.ndarray) -> str:
-        """
-        Performs OCR on the image using package OCR methods.
-        """
-        try:
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            detection_results = self.det_processor.detect(img_gray)
-            print(detection_results)
-            if not isinstance(detection_results, list) or not detection_results:
-                raise ValueError("Detection results should be a non-empty list of bounding boxes")
+    def crop_ocr_box(self, img: np.ndarray, predictions) -> List[Image]:
+        cropped_images = []
+        
+        for i, line in enumerate(predictions[0].text_lines):
+            polygon = line.polygon
             
-            cropped_images = crop_text_regions(img, detection_results)
-            if not cropped_images:
-                raise ValueError("No valid text regions were detected in the image")
-
-            concatenated_image = concatenate_images(cropped_images, direction='vertical')
-            save_image(concatenated_image)
-            if concatenated_image is None:
-                raise ValueError("Failed to concatenate cropped images")
+            # Extract x and y coordinates
+            x_coords = [point[0] for point in polygon]
+            y_coords = [point[1] for point in polygon]
             
-            response = self.vintern_ocr.process_image(concatenated_image)
-            print(response)
-            return response
-
-        except Exception as e:
-            raise Exception(f"Error during package OCR: {str(e)}")
-
+            # Get top-left and bottom-right corners
+            top_left = (min(x_coords), min(y_coords))
+            bottom_right = (max(x_coords), max(y_coords))
+            
+            # Cast the coordinates to integers for image slicing
+            top_left = (int(top_left[0]), int(top_left[1]))
+            bottom_right = (int(bottom_right[0]), int(bottom_right[1]))
+            
+            # Crop the image using numpy slicing
+            cropped_image = img[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
+            
+            # Convert NumPy array (cropped OpenCV image) to PIL Image
+            pil_image = Image.fromarray(cropped_image)
+            
+            # If you want to convert the image (e.g., to grayscale)
+            pil_image = pil_image.convert('L')  # Convert to grayscale (optional)
+            
+            cropped_images.append(pil_image)
+            
+        return cropped_images
+        
     def draw_packages_ocr_box(self, img: Image.Image, predictions) -> Image.Image:
         """
         Draws bounding boxes on the image based on OCR predictions.
@@ -138,59 +136,363 @@ class OcrController:
         img_resized_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
         return img_resized_bgr
-
-
-
-
-
-
-    # async def _scan_with_package_ocr(self, img: np.ndarray) -> str:
+    
+    # async def _scan_with_package_ocr(self, img: np.ndarray , mat_sau: bool = False) -> str:
     #     """
-    #     Performs OCR on the image using package OCR methods.
+    #     Asynchronously performs OCR on the image using package OCR methods.
 
     #     Args:
     #         img (np.ndarray): Image array.
 
     #     Returns:
-    #         str: Extracted text.
+    #         str: Extracted text combined from both OCR methods.
 
     #     Raises:
     #         Exception: If OCR or image processing fails.
     #     """
     #     try:
-    #         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-    #         # _, img_black_white = cv2.threshold(img_gray, 128, 255, cv2.THRESH_BINARY)
-             
+    #         import cv2
+    #         from PIL import Image
+
+    #         # Convert image to grayscale for OCR processing
+    #         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     #         img_original = Image.fromarray(img_gray)
-    #         # img_original = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB) , mode="L")
-    #         # img_resized = img_original.resize((1000, 1000), Image.Resampling.LANCZOS)
-    #         # background_size = (1280, 1080)
-    #         # new_img = Image.new("RGB", background_size, (255, 255, 255))
-    #         # paste_position = (
-    #         #     (background_size[0] - img_resized.width) // 2,
-    #         #     (background_size[1] - img_resized.height) // 2,
-    #         # )
-    #         # new_img.paste(img_resized, paste_position)
-    #         predictions = run_ocr(
+
+    #         # Create tasks for both OCR processes
+    #         # task1 = await asyncio.to_thread(self.vintern_ocr.process_image, img)
+    #         predictions = await asyncio.to_thread(
+    #             run_ocr,
     #             [img_original],
     #             [self.language_list],
     #             self.det_processor,
     #             self.rec_model,
-    #             self.rec_processor,
+    #             self.rec_processor
     #         )
-    #         image_with_boxes = self.draw_packages_ocr_box(img_original, predictions)
-    #         save_image(image_with_boxes)
-    #         formatted_text = "\n".join(line.text for line in predictions[0].text_lines)            
-    #         return formatted_text
+    #         print(predictions)
+    #         # Run both tasks concurrently and wait for their results
+    #         # text_from_vison_model, predictions = await asyncio.gather(task1, task2)
+    #         text_lines = predictions[0].text_lines
+    #         cropped_images = []
+    #         for line in text_lines:
+    #             bbox = line.bbox
+    #             x_min, y_min, x_max, y_max = map(int, bbox)
+    #             cropped_img = img[y_min:y_max, x_min:x_max]
+    #             cropped_images.append(cropped_img)
+    #         if cropped_images:
+    #             merged_image = np.vstack(cropped_images)
+    #         else:
+    #             raise Exception("No text lines found to crop and merge.")
+    #         max_height = 1024
+    #         if merged_image.shape[0] > max_height:
+    #             scale_factor = max_height / merged_image.shape[0]
+    #             new_width = int(merged_image.shape[1] * scale_factor)
+    #             merged_image = cv2.resize(merged_image, (new_width, max_height))
+                
+    #         if len(merged_image.shape) == 2 or merged_image.shape[2] == 1:
+    #             merged_image = cv2.cvtColor(merged_image, cv2.COLOR_GRAY2RGB)
+    #         else:
+    #             merged_image = cv2.cvtColor(merged_image, cv2.COLOR_BGR2RGB)
+                
+                
+    #         save_image(merged_image)
+    #         text_from_vision_model = await asyncio.to_thread(self.vintern_ocr.process_image, merged_image)
+
+                
+                
+
+    #         # Process the predictions from the second OCR method
+    #         formatted_text = "\n".join(line.text for line in predictions[0].text_lines)
+    #         formatted_section = f"Predicted Text from Essayocr:\n{formatted_text}\n\n"
+
+    #         # Combine texts from both OCR methods
+    #         combined_text = formatted_section + text_from_vision_model
+    #         # print(combined_text)
+    #         return formatted_section
+
+    #     except Exception as e:
+    #         raise Exception(f"Error during package OCR: {e}")
+    #     finally:
+    #         if torch.cuda.is_available():
+    #             torch.cuda.empty_cache()
+    
+    
+    
+    # async def _scan_with_package_ocr(self, img: np.ndarray) -> str:
+    #     try:
+    #         # Convert image to grayscale for OCR processing
+    #         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #         img_original = Image.fromarray(img_gray)
+
+    #         # Run OCR to get predictions
+    #         predictions = await asyncio.to_thread(
+    #             run_ocr,
+    #             [img_original],
+    #             [self.language_list],
+    #             self.det_processor,
+    #             self.rec_model,
+    #             self.rec_processor
+    #         )
+
+    #         # Extract bounding boxes from predictions
+    #         text_lines = predictions[0].text_lines  # Assuming predictions is a list with at least one OCRResult
+    #         cropped_images = []
+    #         max_width = 0
+
+    #         # First, find the maximum width among all cropped images
+    #         for line in text_lines:
+    #             # Get bounding box coordinates
+    #             bbox = line.bbox  # [x_min, y_min, x_max, y_max]
+    #             x_min, y_min, x_max, y_max = map(int, bbox)
+
+    #             # Crop the image using the bounding box
+    #             cropped_img = img[y_min:y_max, x_min:x_max]
+
+    #             # Update max_width if this image is wider
+    #             if cropped_img.shape[1] > max_width:
+    #                 max_width = cropped_img.shape[1]
+
+    #             cropped_images.append(cropped_img)
+
+    #         # Now, pad images to have the same width
+    #         padded_images = []
+    #         for img_crop in cropped_images:
+    #             height, width = img_crop.shape[:2]
+    #             if width < max_width:
+    #                 # Calculate the amount of padding needed
+    #                 pad_width = max_width - width
+    #                 # Pad the image (pad on the right side)
+    #                 if len(img_crop.shape) == 2:  # Grayscale image
+    #                     img_padded = np.pad(
+    #                         img_crop, 
+    #                         ((0, 0), (0, pad_width)), 
+    #                         mode='constant', 
+    #                         constant_values=255  # White padding
+    #                     )
+    #                 else:  # Color image
+    #                     img_padded = np.pad(
+    #                         img_crop, 
+    #                         ((0, 0), (0, pad_width), (0, 0)), 
+    #                         mode='constant', 
+    #                         constant_values=255  # White padding
+    #                     )
+    #                 padded_images.append(img_padded)
+    #             else:
+    #                 padded_images.append(img_crop)
+
+    #         # Now stack the padded images vertically
+    #         if padded_images:
+    #             merged_image = np.vstack(padded_images)
+    #         else:
+    #             raise Exception("No text lines found to crop and merge.")
+
+    #         # Ensure the merged image has a suitable size for OCR
+    #         # For example, resize if the image is too large
+    #         max_height = 1024  # Adjust based on your OCR model's requirements
+    #         if merged_image.shape[0] > max_height:
+    #             scale_factor = max_height / merged_image.shape[0]
+    #             new_width = int(merged_image.shape[1] * scale_factor)
+    #             merged_image = cv2.resize(merged_image, (new_width, max_height))
+
+    #         # Convert merged image to RGB if necessary
+    #         if len(merged_image.shape) == 2 or merged_image.shape[2] == 1:
+    #             merged_image = cv2.cvtColor(merged_image, cv2.COLOR_GRAY2RGB)
+    #         else:
+    #             merged_image = cv2.cvtColor(merged_image, cv2.COLOR_BGR2RGB)
+    #         save_image(merged_image)
+    #         # Send the merged image to the vision LLM OCR
+    #         text_from_vision_model = await asyncio.to_thread(self.vintern_ocr.process_image, merged_image)
+
+    #         # Process the predictions from the first OCR method
+    #         formatted_text = "\n".join(line.text for line in text_lines)
+    #         formatted_section = f"Predicted Text from EssayOCR:\n{formatted_text}\n\n"
+
+    #         # Combine texts from both OCR methods
+    #         combined_text = formatted_section + text_from_vision_model
+
+    #         # Clear GPU memory if available
+    #         if torch.cuda.is_available():
+    #             torch.cuda.empty_cache()
+    #         print(combined_text)
+    #         return combined_text
 
     #     except Exception as e:
     #         raise Exception(f"Error during package OCR: {e}")
     
     
-def batch_images(images: list, batch_size: int = 5) -> list:
-    """
-    Splits the images into batches of a given size.
-    """
-    for i in range(0, len(images), batch_size):
-        yield images[i:i + batch_size]
+    
+#     import cv2
+# import numpy as np
+# from PIL import Image
+
+    # async def _scan_with_package_ocr(self, img: np.ndarray) -> str:
+    #     try:
+    #         # Convert image to grayscale for OCR processing
+    #         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #         img_original = Image.fromarray(img_gray)
+
+    #         # Run OCR to get predictions
+    #         predictions = await asyncio.to_thread(
+    #             run_ocr,
+    #             [img_original],
+    #             [self.language_list],
+    #             self.det_processor,
+    #             self.rec_model,
+    #             self.rec_processor
+    #         )
+
+    #         # Extract bounding boxes from predictions
+    #         text_lines = predictions[0].text_lines  # Assuming predictions is a list with at least one OCRResult
+    #         bboxes = [list(map(int, line.bbox)) for line in text_lines]  # Convert bbox coordinates to integers
+
+    #         # Merge overlapping bounding boxes
+    #         merged_bboxes = merge_overlapping_bboxes(bboxes)
+
+    #         # Now proceed to crop images using the merged bounding boxes
+    #         cropped_images = []
+    #         max_width = 0
+
+    #         for bbox in merged_bboxes:
+    #             x_min, y_min, x_max, y_max = bbox
+
+    #             # Crop the image using the bounding box
+    #             cropped_img = img[y_min:y_max, x_min:x_max]
+
+    #             # Update max_width if this image is wider
+    #             if cropped_img.shape[1] > max_width:
+    #                 max_width = cropped_img.shape[1]
+
+    #             cropped_images.append(cropped_img)
+
+    #         # Now, pad images to have the same width
+    #         padded_images = []
+    #         for img_crop in cropped_images:
+    #             height, width = img_crop.shape[:2]
+    #             if width < max_width:
+    #                 # Calculate the amount of padding needed
+    #                 pad_width = max_width - width
+    #                 # Pad the image (pad on the right side)
+    #                 if len(img_crop.shape) == 2:  # Grayscale image
+    #                     img_padded = np.pad(
+    #                         img_crop,
+    #                         ((0, 0), (0, pad_width)),
+    #                         mode='constant',
+    #                         constant_values=255  # White padding
+    #                     )
+    #                 else:  # Color image
+    #                     img_padded = np.pad(
+    #                         img_crop,
+    #                         ((0, 0), (0, pad_width), (0, 0)),
+    #                         mode='constant',
+    #                         constant_values=255  # White padding
+    #                     )
+    #                 padded_images.append(img_padded)
+    #             else:
+    #                 padded_images.append(img_crop)
+
+    #         # Now stack the padded images vertically
+    #         if padded_images:
+    #             merged_image = np.vstack(padded_images)
+    #         else:
+    #             raise Exception("No text lines found to crop and merge.")
+
+    #         # Ensure the merged image has a suitable size for OCR
+    #         max_height = 1024  # Adjust based on your OCR model's requirements
+    #         if merged_image.shape[0] > max_height:
+    #             scale_factor = max_height / merged_image.shape[0]
+    #             new_width = int(merged_image.shape[1] * scale_factor)
+    #             merged_image = cv2.resize(merged_image, (new_width, max_height))
+
+    #         # Convert merged image to RGB if necessary
+    #         if len(merged_image.shape) == 2 or merged_image.shape[2] == 1:
+    #             merged_image = cv2.cvtColor(merged_image, cv2.COLOR_GRAY2RGB)
+    #         else:
+    #             merged_image = cv2.cvtColor(merged_image, cv2.COLOR_BGR2RGB)
+
+    #         # Optionally, save the merged image for debugging
+    #         save_image(merged_image)
+
+    #         # Send the merged image to the vision LLM OCR
+    #         text_from_vision_model = await asyncio.to_thread(self.vintern_ocr.process_image, merged_image)
+
+            # formatted_text = "\n".join(line.text for line in text_lines)
+            # formatted_section = f"Predicted Text from EssayOCR:\n{formatted_text}\n\n"
+            # formatted_section2 = f"Predicted Text from LLM vison:\n{text_from_vision_model}\n\n"
+            # # Combine texts from both OCR methods
+            # combined_text = formatted_section + formatted_section2
+    #         # Clear GPU memory if available
+    #         if torch.cuda.is_available():
+    #             torch.cuda.empty_cache()
+
+    #         print(combined_text)
+    #         return combined_text
+
+    #     except Exception as e:
+    #         raise Exception(f"Error during package OCR: {e}")
+
+    async def _scan_with_package_ocr(self, img: np.ndarray, mat_sau: bool = False ) -> str:
+        try:
+            # Convert image to grayscale for OCR processing
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img_original = Image.fromarray(img_gray)
+            
+
+            # Run OCR to get predictions
+            predictions = await asyncio.to_thread(
+                run_ocr,
+                [img_original],
+                [self.language_list],
+                self.det_processor,
+                self.rec_model,
+                self.rec_processor
+            )
+            print(predictions[0])
+
+            text_lines = predictions[0].text_lines
+            filtered_text_lines = [line for line in text_lines if line.confidence >= 0.5]
+            if mat_sau:
+                filtered_text_lines = filtered_text_lines[:len(filtered_text_lines)//2]
+                filtered_text_lines = [line for line in filtered_text_lines if not is_mrz(line.text)]
+            bboxes = [list(map(int, line.bbox)) for line in filtered_text_lines]
+            merged_bboxes = merge_overlapping_bboxes(bboxes)
+            cropped_images = []
+            for bbox in merged_bboxes:
+                x_min, y_min, x_max, y_max = bbox
+                cropped_img = img[y_min:y_max, x_min:x_max]
+                if len(cropped_img.shape) == 2 or cropped_img.shape[2] == 1:
+                    cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_GRAY2RGB)
+                else:
+                    cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
+                cropped_images.append(cropped_img)
+
+            batch_size = 4  
+            text_results = []
+            for i in range(0, len(cropped_images), batch_size):
+                batch_images = cropped_images[i:i+batch_size]
+                batch_responses = await asyncio.to_thread(
+                    self.vintern_ocr.process_images, batch_images
+                )
+                text_results.extend(batch_responses)
+
+            # Combine the text results from each image
+            text_from_vision_model = '\n'.join(text_results)
+
+            # Process the predictions from the first OCR method
+            formatted_text = "\n".join(line.text for line in filtered_text_lines)
+            formatted_section = f"Predicted Text from EssayOCR:\n{formatted_text}\n\n"
+            formatted_section2 = f"Predicted Text from LLM Vision:\n{text_from_vision_model}\n\n"
+
+            # Combine texts from both OCR methods
+            combined_text = formatted_section + formatted_section2
+
+            # Clear GPU memory if available
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            print(combined_text)
+            return combined_text
+
+        except Exception as e:
+            raise Exception(f"Error during package OCR: {e}")
+
+
+

@@ -89,12 +89,37 @@ def save_image(image: Union[str, np.ndarray, Image.Image], save_dir: str = TEMP_
 
 
 def load_image(image_input: Any) -> np.ndarray:
-    """Loads an image from various sources."""
+    """
+    Loads an image from various sources and tries to handle errors gracefully.
+
+    Supports loading images from:
+        - File paths (local or URLs starting with 'http://' or 'https://')
+        - NumPy arrays (representing images)
+        - Pillow Image objects
+        - Byte strings (representing image data)
+
+    Args:
+        image_input (Any): The image data. Can be a file path (str), a NumPy array,
+                           a Pillow Image, or a bytes object.
+
+    Returns:
+        np.ndarray: The loaded image as a NumPy array in RGB format.
+
+    Raises:
+        FileNotFoundError: If the provided file path does not exist.
+        ImageProcessingError: If there's an error loading or converting the image.
+        ValueError: If the input type is not supported or if the image data is invalid.
+    """
+    
+
     def attempt_color_fix(img):
-        if img.ndim == 2:
-            return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-        elif img.ndim == 3:
-            return cv2.cvtColor(img, cv2.COLOR_BGR2RGB) if img.shape[2] == 3 else cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
+        """Attempts to fix color issues if the initial load fails."""
+        if img.ndim == 2:  # Grayscale
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        elif img.ndim == 3 and img.shape[2] == 4:  # RGBA to RGB
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
+        elif img.ndim == 3 and img.shape[2] == 3:  # BGR to RGB
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         return img
 
     try:
@@ -103,6 +128,8 @@ def load_image(image_input: Any) -> np.ndarray:
                 response = requests.get(image_input)
                 response.raise_for_status()
                 img = Image.open(io.BytesIO(response.content))
+            elif not os.path.exists(image_input):
+                raise FileNotFoundError(f"File not found: {image_input}")
             else:
                 img = Image.open(image_input)
             img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
@@ -113,19 +140,53 @@ def load_image(image_input: Any) -> np.ndarray:
         elif isinstance(image_input, bytes):
             nparr = np.frombuffer(image_input, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+            if img is None:
+                raise Exception("Failed to decode image from bytes.")
         else:
             raise ValueError("Unsupported image input type.")
-        
-        return attempt_color_fix(img)
+        if img is None or len(img.shape) < 2 or len(img.shape) > 3:
+            raise ValueError("Invalid image format. The image could not be loaded correctly.")
+        return img 
+
     except Exception as e:
-        raise Exception(f"Failed to load image: {str(e)}")
+        try:
+            if isinstance(image_input, bytes):
+                nparr = np.frombuffer(image_input, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # Force color load
+                img = attempt_color_fix(img)  # Apply color fix
+            elif isinstance(image_input, str):
+                img = Image.open(image_input).convert("RGB")  # Convert to RGB to fix color issues
+                img = np.array(img)
+                
+                
+            elif isinstance(image_input, Image.Image):
+                img = np.array(image_input.convert("RGB"))  # Convert to RGB
+            elif isinstance(image_input, np.ndarray):
+                img = attempt_color_fix(image_input)  # Apply color fix for NumPy array
+            else:
+                raise Exception("Unable to fix the image loading issue.")
+            return img
+        except Exception as e:
+            raise Exception(f"Failed to load and fix image: {str(e)}")
 
 def preprocess_image(img: np.ndarray) -> np.ndarray:
-    """Applies preprocessing to an image, enhancing contrast and sharpness."""
+    """
+    Applies preprocessing to an image, enhancing contrast and sharpness.
+
+    Args:
+        img (np.ndarray): The image as a NumPy array in RGB format.
+
+    Returns:
+        np.ndarray: The preprocessed image as a NumPy array.
+    """
+    # Convert to PIL Image for processing
     pil_img = Image.fromarray(img)
     pil_img = ImageEnhance.Contrast(pil_img).enhance(1.5)
     pil_img = ImageEnhance.Sharpness(pil_img).enhance(1.5)
-    return np.array(pil_img)
+    
+    # Convert back to NumPy array
+    processed_img = np.array(pil_img)
+    return processed_img
 
 def load_and_preprocess_image(image_input: Any) -> Tuple[np.ndarray, np.ndarray]:
     """Loads an image and applies preprocessing while keeping the original unchanged."""
@@ -202,32 +263,6 @@ def convert_image(image_data: np.ndarray) -> bytes:
             return output.getvalue()
     except Exception as e:
         raise Exception(f"Error converting image: {e}")
-def concatenate_images(images: list, direction='vertical') -> np.ndarray:
-    """
-    Concatenate a list of np.ndarray images into one single image.
-    Arranges images either vertically or horizontally, without limiting the height or width.
-    
-    Pads images to have the same width (for vertical concatenation) or height (for horizontal concatenation).
-    """
-    if not images:
-        return None
-    processed_images = []
-    for img in images:
-        if len(img.shape) == 2:  # Grayscale image
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-        processed_images.append(img)
-
-    if direction == 'horizontal':
-        max_height = max(img.shape[0] for img in processed_images)
-        padded_images = [cv2.copyMakeBorder(img, 0, max_height - img.shape[0], 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0]) for img in processed_images]
-        concatenated_image = cv2.hconcat(padded_images)
-    else:  # Default is 'vertical'
-        max_width = max(img.shape[1] for img in processed_images)
-        # Pad images to have the same width
-        padded_images = [cv2.copyMakeBorder(img, 0, 0, 0, max_width - img.shape[1], cv2.BORDER_CONSTANT, value=[0, 0, 0]) for img in processed_images]
-        concatenated_image = cv2.vconcat(padded_images)
-
-    return concatenated_image
 
 
 
@@ -250,3 +285,7 @@ def crop_text_regions(image: np.ndarray, detection_boxes: list) -> list:
             cropped_images.append(image[y_min:y_max, x_min:x_max])
 
     return cropped_images
+
+
+
+
