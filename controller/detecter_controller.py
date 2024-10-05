@@ -34,7 +34,7 @@ class Detector:
         self.card_detecter = ImageRectify()
         self.ocr_controller = OcrController()
         self.qreader = QReader(
-            model_size="l", min_confidence=0.5, reencode_to="cp65001"
+            model_size="l", min_confidence=0.7, reencode_to="cp65001"
         )
 
         self.ocr_text = None
@@ -136,35 +136,25 @@ class Detector:
             return ""
 
         try:
-            # Convert image to BGR format if needed
-            if len(image.shape) == 2:  # Grayscale image
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-            elif image.shape[2] == 4:  # RGBA image
-                image = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
-
-            # Try to decode the original image
             text_qr = process_and_decode(image)
             if text_qr:
                 return text_qr
 
-            # If detection failed, attempt to enhance and reprocess the QR code
             detections = self.qreader.detect(image)
+            
             if detections:
                 cropped_qr = crop_image_qr(image, detections[0])
                 enhanced_img = process_qr_image(cropped_qr)
 
-                # Retry decoding on enhanced image
                 text_qr = process_and_decode(enhanced_img, detections)
                 if text_qr:
                     return text_qr
 
-                # Final attempt by scaling up and processing as grayscale
                 scaled_img = scale_up_img(enhanced_img, 480)
                 return process_and_decode(scaled_img) or ""
-
+            print(text_qr)
             return ""  # Return empty if no QR code was detected
 
         except Exception as ex:
             logger.error(f"QR Code reading failed: {ex}")
             return ""
-

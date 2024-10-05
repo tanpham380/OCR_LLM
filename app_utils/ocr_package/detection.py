@@ -35,7 +35,7 @@ def batch_text_detection(images: List[Image.Image], rapidocr_detector: TextDect_
         bboxes = []
         for bbox_coords in det_results:
             try:
-                adjusted_bbox_coords = adjust_bbox_height(bbox_coords, height_adjustment_factor=0.2)
+                adjusted_bbox_coords = adjust_bbox_height(bbox_coords, height_adjustment_factor=0.3)
                 polygon_box = PolygonBox(polygon=adjusted_bbox_coords)
                 bboxes.append(polygon_box)
             except ValueError as e:

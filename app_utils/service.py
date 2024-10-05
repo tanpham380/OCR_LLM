@@ -10,19 +10,19 @@ from typing import List
 from quart import current_app, g, url_for
 from app_utils.file_handler import save_image, scale_up_img
 from app_utils.logging import get_logger
+from app_utils.prompt import generate_user_context
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import calculate_expiration_date, calculate_sex_from_id, rotate_image
 from config import SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
-from controller.llm_controller import LlmController
+# from controller.llm_controller import LlmController
 
 logger = get_logger(__name__)
 
 # Initialize controllers
 detector_controller = Detector()
-llm_controller = LlmController()
+# llm_controller = LlmController()
 orientation_engine = RapidOrientation()
-
 async def scan(image_paths: List[str]) -> dict:
     try:
         start_time = time.perf_counter()
@@ -58,14 +58,15 @@ async def scan(image_paths: List[str]) -> dict:
             db_manager.insert_image(ocr_result_id, 'front', front_result["image_path"]),
             db_manager.insert_image(ocr_result_id, 'back', back_result["image_path"])
         )
-
-        context = await asyncio.to_thread(llm_controller.set_user_context, combined_ocr_data)
-        await db_manager.insert_user_context(ocr_result_id, context)
-
-        llm_controller.set_model('qwen2.5')
-        llm_response = await llm_controller.send_message()
-
-        message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
+        
+        content_system = (
+            "Bạn là một trợ lý AI chuyên xử lý văn bản OCR từ thẻ Căn Cước Công Dân Việt Nam (CCCD). Kết quả trả về phải là JSON, không giải thích hay văn bản thừa."
+        )
+        content_user = generate_user_context(combined_ocr_data)
+        message_content = detector_controller.get_ocr().vintern_llm.set_prompt_messages(None, content_user , content_system)
+        llm_response = detector_controller.get_ocr().vintern_llm.chat(message_content)
+        print(llm_response)
+        message_content = clean_message_content(llm_response)
         if not message_content.get('date_of_expiration'):
             day_of_birth = message_content.get('day_of_birth', '')
             if day_of_birth:

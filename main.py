@@ -14,5 +14,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     scan_app.run(host="0.0.0.0", port=args.port)
     
-    
+      
     # (ocr2) (base) gitlab@AIMACHINE:~/ocr$ uvicorn main:scan_app --reload --host 0.0.0.0 --port 5001
