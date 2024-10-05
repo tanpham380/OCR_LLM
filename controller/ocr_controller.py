@@ -26,12 +26,12 @@ class OcrController:
     def __init__(self) -> None:
         self.language_list = ["vi" , "en" ]
         self.det_processor = TextDect_withRapidocr(text_score = 0.4 , det_use_cuda = True)
-        # self.vintern_ocr = VinternOCRModel()
-        self.vintern_llm = EraxLLMVison("/home/gitlab/ocr/app_utils/weights/EraX-VL-7B-V1")
+        self.vintern_ocr = VinternOCRModel("/home/gitlab/ocr/app_utils/weights/Vintern-1B-v3")
+        # self.vintern_llm = EraxLLMVison("/home/gitlab/ocr/app_utils/weights/EraX-VL-7B-V1")
         self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
         
-    def get_vintern_llm(self):
-        return self.vintern_llm
+    # def get_vintern_llm(self):
+    #     return self.vintern_llm
 
 
     async def scan_image(self, image_input: Any, methods: List[str] = [ "package_ocr"] , mat_sau: bool = False ) -> Dict[str, Any]:
@@ -73,16 +73,14 @@ class OcrController:
         try:
             img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             img_original = Image.fromarray(img_gray)
-            messages = self.vintern_llm.set_prompt_messages(img)
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # messages = self.vintern_llm.set_prompt_messages(img)
+            
             ocr_result = await asyncio.to_thread(
                 run_ocr, [img_original], [self.language_list], self.det_processor, self.rec_model, self.rec_processor
             )
-
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            vision_model_result = await asyncio.to_thread(self.vintern_llm.chat, messages)
+            vision_model_result = await asyncio.to_thread(self.vintern_ocr.process_image, img)
             text_lines = ocr_result[0].text_lines
             filtered_text_lines = [line for line in text_lines if line.confidence >= 0.5]
             if mat_sau:

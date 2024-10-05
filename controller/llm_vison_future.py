@@ -20,18 +20,17 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 class VinternOCRModel:
-    def __init__(self, model_path="/home/gitlab/ocr/Vintern-1B-v3"):
+    def __init__(self, model_path="5CD-AI/Vintern-1B-v3"):
         """
         Initialize the model and tokenizer.
         """
         self.default_prompt = """trích xuất và trả về văn bản có trong ảnh, không giải thích 
         Lưu ý: lấy cụ thể các thông tin trên thẻ và trả lời dạng Json \n 
-        - Để " " nếu không có thông tin đó
         - Chú ý các tường thông tin sau
             + Họ và tên \n
-            + Nơi thường trú (place of residence) \n
-            + Quê quán ( place of origin , place of birth )\n
-            + Ngày tháng năm sinh, ngày tháng năm hết hạn và ngày tháng năm kí \n
+            + Lấy tất cả thông tin Nơi thường trú (place of residence) \n
+            + Lấy tất cả thông tin Quê quán ( place of origin , place of birth )\n
+            + Ngày tháng năm sinh, ngày tháng năm hết hạn và ngày tháng năm kí của thẻ căn cước \n
         """
 
         self.model_path = model_path

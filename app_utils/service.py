@@ -15,13 +15,13 @@ from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientati
 from app_utils.util import calculate_expiration_date, calculate_sex_from_id, rotate_image
 from config import SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
-# from controller.llm_controller import LlmController
+from controller.llm_controller import LlmController
 
 logger = get_logger(__name__)
 
 # Initialize controllers
 detector_controller = Detector()
-# llm_controller = LlmController()
+llm_controller = LlmController()
 orientation_engine = RapidOrientation()
 async def scan(image_paths: List[str]) -> dict:
     try:
@@ -59,14 +59,27 @@ async def scan(image_paths: List[str]) -> dict:
             db_manager.insert_image(ocr_result_id, 'back', back_result["image_path"])
         )
         
-        content_system = (
-            "Bạn là một trợ lý AI chuyên xử lý văn bản OCR từ thẻ Căn Cước Công Dân Việt Nam (CCCD). Kết quả trả về phải là JSON, không giải thích hay văn bản thừa."
-        )
-        content_user = generate_user_context(combined_ocr_data)
-        message_content = detector_controller.get_ocr().vintern_llm.set_prompt_messages(None, content_user , content_system)
-        llm_response = detector_controller.get_ocr().vintern_llm.chat(message_content)
-        print(llm_response)
-        message_content = clean_message_content(llm_response)
+        # content_system = (
+        #     "Bạn là một trợ lý AI chuyên xử lý văn bản OCR từ thẻ Căn Cước Công Dân Việt Nam (CCCD). \n"
+        #     "Nhiệm vụ của bạn là phân tích, so sánh, và sửa lỗi OCR \n"
+        #     "đồng thời đối chiếu với dữ liệu từ mã QR để đảm bảo tính chính xác. Vui lòng thực hiện các bước sau:\n"
+        #     "1. So sánh thông tin từ các nguồn OCR với dữ liệu mã QR. Ưu tiên dữ liệu từ mã QR nếu có sự khác biệt.\n"
+        #     "2. Sửa lỗi OCR bao gồm lỗi chính tả, thiếu dấu, hoặc định dạng sai.\n"
+        #     "3. Đảm bảo tất cả ngày tháng được định dạng theo 'DD/MM/YYYY'.\n"
+        #     "4. Để trống ('') nếu thông tin không rõ ràng hoặc thiếu.\n"
+        #     "5. Chỉ chỉnh sửa dữ liệu hiện có; không bổ sung thêm thông tin mới.\n"
+        #     "6. Kết quả trả về phải là JSON, không kèm giải thích hay văn bản thừa. \n"
+        #     "7. Tuyệt đối không trả về bất cứ văn bản nào khác ngoài JSON. \n"
+        # )
+        # content_user = generate_user_context(combined_ocr_data)
+        # llm_response = detector_controller.get_ocr().vintern_llm.set_prompt_messages(None, content_user , content_system)
+        context = await asyncio.to_thread(llm_controller.set_user_context, combined_ocr_data)
+        await db_manager.insert_user_context(ocr_result_id, context)
+
+        llm_controller.set_model('qwen2.5')
+        llm_response = await llm_controller.send_message()
+
+        message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
         if not message_content.get('date_of_expiration'):
             day_of_birth = message_content.get('day_of_birth', '')
             if day_of_birth:
