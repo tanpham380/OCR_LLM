@@ -17,10 +17,12 @@ from app_utils.ocr_package.model.recognition.processor import (
 from app_utils.ocr_package.model.recognition.model import load_model as load_rec_model
 from PIL import Image
 
+from config import VIETOCR_MODEL_PATH
 from controller.llm_vison_future import VinternOCRModel , EraxLLMVison
 
 logger = get_logger(__name__)
-
+from vietocr.tool.predictor import Predictor
+from vietocr.tool.config import Cfg
 import asyncio
 class OcrController:
     def __init__(self) -> None:
@@ -29,7 +31,11 @@ class OcrController:
         self.vintern_ocr = VinternOCRModel("/home/gitlab/ocr/app_utils/weights/Vintern-1B-v3")
         # self.vintern_llm = EraxLLMVison("/home/gitlab/ocr/app_utils/weights/EraX-VL-7B-V1")
         self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
-        
+        self.config = Cfg.load_config_from_name('vgg_seq2seq')
+        self.config['weights'] = VIETOCR_MODEL_PATH
+        self.config['cnn']['pretrained'] = False
+        self.config['device'] = 'cpu'
+        self.detector = Predictor(self.config)
     # def get_vintern_llm(self):
     #     return self.vintern_llm
 
@@ -86,13 +92,26 @@ class OcrController:
             if mat_sau:
                 filtered_text_lines = filtered_text_lines[:len(filtered_text_lines)//2]
                 filtered_text_lines = [line for line in filtered_text_lines if not is_mrz(line.text)]
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            # self.detector 
+            bboxes = [list(map(int, line.bbox)) for line in filtered_text_lines]
+            image_list = []
+            for bbox in bboxes:
+                x_min, y_min, x_max, y_max = bbox
+                cropped_img = img_original.crop((x_min, y_min, x_max, y_max))
+                image_list.append(cropped_img)
+
+            Vietocr_result = await asyncio.to_thread(self.detector.predict_batch, image_list)
+            Vietocr_text += f"Trích thông tin Vietocr :\n{Vietocr_result}\n\n"
+
             formatted_text = "\n".join(line.text for line in filtered_text_lines)
             formatted_section = f"Trích thông tin 1:\n{formatted_text}\n\n"
             if isinstance(vision_model_result, list):
                 vision_model_text = f"Trích thông tin 2 :\n{str(vision_model_result)}\n\n"
             else:
                 vision_model_text = f"Trích thông tin 2 :\n{vision_model_result}\n\n"
-            combined_text = formatted_section + "\n\n" + vision_model_text
+            combined_text = formatted_section + "\n\n" + vision_model_text + "\n\n" + Vietocr_text
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             return combined_text

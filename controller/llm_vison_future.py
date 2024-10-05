@@ -34,6 +34,7 @@ class VinternOCRModel:
         """
 
         self.model_path = model_path
+        
         self.model = (
             AutoModel.from_pretrained(
                 model_path,

@@ -41,7 +41,7 @@ WEIGHTS = os.path.join(UTILS_PATH, "weights")
 # FACE_MODEL_PATH = os.path.join(WEIGHTS, "face.pt")
 
 # CORNER_MODEL_PATH = os.path.join(WEIGHTS, "corner.pt")
-# CONTENT_MODEL_PATH = os.path.join(WEIGHTS, "content.pt")
+VIETOCR_MODEL_PATH = os.path.join(WEIGHTS, "/home/gitlab/ocr/app_utils/weights/seq2seqocr.pth")
 CORNER_MODEL_PATH = os.path.join(WEIGHTS, "ID_Card.pt")
 CORNER_MODEL_PATH2 = os.path.join(WEIGHTS, "Angle_Deg.pt")
 
