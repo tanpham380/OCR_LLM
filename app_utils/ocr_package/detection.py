@@ -28,14 +28,15 @@ def batch_text_detection(images: List[Image.Image], rapidocr_detector: TextDect_
     results = []
     for img in images:
         # Convert PIL image to numpy array
-        img_array = np.array(img.convert('RGB'))
+        img_array = np.array(img)
+        #  img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # Detect text using RapidOCR
         det_results = rapidocr_detector.detect(img_array)
         
         bboxes = []
         for bbox_coords in det_results:
             try:
-                adjusted_bbox_coords = adjust_bbox_height(bbox_coords, height_adjustment_factor=0.3)
+                adjusted_bbox_coords = adjust_bbox_height(bbox_coords, height_adjustment_factor=0.25)
                 polygon_box = PolygonBox(polygon=adjusted_bbox_coords)
                 bboxes.append(polygon_box)
             except ValueError as e:

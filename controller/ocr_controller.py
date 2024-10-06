@@ -21,21 +21,21 @@ from config import VIETOCR_MODEL_PATH
 from controller.llm_vison_future import VinternOCRModel , EraxLLMVison
 
 logger = get_logger(__name__)
-from vietocr.tool.predictor import Predictor
-from vietocr.tool.config import Cfg
+# from vietocr.tool.predictor import Predictor
+# from vietocr.tool.config import Cfg
 import asyncio
 class OcrController:
     def __init__(self) -> None:
         self.language_list = ["vi" , "en" ]
-        self.det_processor = TextDect_withRapidocr(text_score = 0.4 , det_use_cuda = True)
+        self.det_processor = TextDect_withRapidocr(text_score = 0.6 , det_use_cuda = True)
         self.vintern_ocr = VinternOCRModel("/home/gitlab/ocr/app_utils/weights/Vintern-1B-v3")
         # self.vintern_llm = EraxLLMVison("/home/gitlab/ocr/app_utils/weights/EraX-VL-7B-V1")
         self.rec_model, self.rec_processor = load_rec_model(), load_rec_processor()
-        self.config = Cfg.load_config_from_name('vgg_seq2seq')
-        self.config['weights'] = VIETOCR_MODEL_PATH
-        self.config['cnn']['pretrained'] = False
-        self.config['device'] = 'cpu'
-        self.detector = Predictor(self.config)
+        # self.config = Cfg.load_config_from_name('vgg_seq2seq')
+        # self.config['weights'] = VIETOCR_MODEL_PATH
+        # self.config['cnn']['pretrained'] = False
+        # self.config['device'] = 'cpu'
+        # self.detector = Predictor(self.config)
     # def get_vintern_llm(self):
     #     return self.vintern_llm
 
@@ -77,8 +77,8 @@ class OcrController:
 
     async def _scan_with_package_ocr(self, img: np.ndarray, mat_sau: bool = False) -> str:
         try:
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img_original = Image.fromarray(img_gray)
+            # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img_original = Image.fromarray(img)
             # messages = self.vintern_llm.set_prompt_messages(img)
             
             ocr_result = await asyncio.to_thread(
@@ -86,32 +86,32 @@ class OcrController:
             )
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            vision_model_result = await asyncio.to_thread(self.vintern_ocr.process_image, img)
+            #vision_model_result = await asyncio.to_thread(self.vintern_ocr.process_image, img)
             text_lines = ocr_result[0].text_lines
             filtered_text_lines = [line for line in text_lines if line.confidence >= 0.5]
-            if mat_sau:
-                filtered_text_lines = filtered_text_lines[:len(filtered_text_lines)//2]
-                filtered_text_lines = [line for line in filtered_text_lines if not is_mrz(line.text)]
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            # self.detector 
-            bboxes = [list(map(int, line.bbox)) for line in filtered_text_lines]
-            image_list = []
-            for bbox in bboxes:
-                x_min, y_min, x_max, y_max = bbox
-                cropped_img = img_original.crop((x_min, y_min, x_max, y_max))
-                image_list.append(cropped_img)
+            # if mat_sau:
+            #     filtered_text_lines = filtered_text_lines[:len(filtered_text_lines)//2]
+            #     filtered_text_lines = [line for line in filtered_text_lines if not is_mrz(line.text)]
+            # if torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
+            # # self.detector 
+            # bboxes = [list(map(int, line.bbox)) for line in filtered_text_lines]
+            # image_list = []
+            # for bbox in bboxes:
+            #     x_min, y_min, x_max, y_max = bbox
+            #     cropped_img = img_original.crop((x_min, y_min, x_max, y_max))
+            #     image_list.append(cropped_img)
 
-            Vietocr_result = await asyncio.to_thread(self.detector.predict_batch, image_list)
-            Vietocr_text += f"Trích thông tin Vietocr :\n{Vietocr_result}\n\n"
+            # Vietocr_result = await asyncio.to_thread(self.detector.predict_batch, image_list)
+            # Vietocr_text = f"Trích thông tin Vietocr :\n{Vietocr_result}\n\n"
 
             formatted_text = "\n".join(line.text for line in filtered_text_lines)
-            formatted_section = f"Trích thông tin 1:\n{formatted_text}\n\n"
-            if isinstance(vision_model_result, list):
-                vision_model_text = f"Trích thông tin 2 :\n{str(vision_model_result)}\n\n"
-            else:
-                vision_model_text = f"Trích thông tin 2 :\n{vision_model_result}\n\n"
-            combined_text = formatted_section + "\n\n" + vision_model_text + "\n\n" + Vietocr_text
+            formatted_section = f"Trích thông tin SuryaOCR:\n{formatted_text}\n\n"
+            # if isinstance(vision_model_result, list):
+            #     vision_model_text = f"Trích thông tin 2 :\n{str(vision_model_result)}\n\n"
+            # else:
+            #     vision_model_text = f"Trích thông tin 2 :\n{vision_model_result}\n\n"
+            combined_text = formatted_section  #+ "\n\n" + Vietocr_text  #+ "\n\n" + vision_model_text 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             return combined_text
