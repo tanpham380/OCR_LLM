@@ -169,13 +169,22 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 #             torch.cuda.empty_cache()
 
 #         return response
+from typing import Optional, Tuple, List
+import cv2
+import numpy as np
+import torch
+from torch import Tensor
+from PIL import Image
+from torchvision import transforms as T
+from torchvision.transforms.functional import InterpolationMode
+from ultralytics import YOLO
+from transformers import AutoModel, AutoTokenizer
 
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 class VinternOCRModel:
     def __init__(self, model_path="5CD-AI/Vintern-1B-v3"):
-        """
-        Initialize the model and tokenizer.
-        """
         self.default_prompt = (
             "Hãy trích xuất toàn bộ chi tiết của bức ảnh này theo đúng thứ tự của nội dung và đầy đủ trong ảnh, "
             "đảm bảo đúng chính tả. Không bình luận gì thêm. "
@@ -198,23 +207,21 @@ class VinternOCRModel:
         )
         self.tokenizer.model_max_length = 20480
 
-    def build_transform(self, input_size):
-        """
-        Create a transformation pipeline to process input images as PIL Images.
-        """
-        MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
-        transform = T.Compose([
+        # Pre-compile the transform function
+        self.transform = self.build_transform(448)
+
+    @staticmethod
+    def build_transform(input_size):
+        return T.Compose([
             T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
             T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
             T.ToTensor(),
-            T.Normalize(mean=MEAN, std=STD)
+            T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
         ])
-        return transform
 
-    def find_closest_aspect_ratio(self, aspect_ratio, target_ratios, width, height, image_size):
-        """
-        Find the closest aspect ratio from target ratios.
-        """
+    @staticmethod
+    @torch.jit.script
+    def find_closest_aspect_ratio(aspect_ratio: float, target_ratios: List[Tuple[int, int]], width: int, height: int, image_size: int) -> Tuple[int, int]:
         best_ratio_diff = float('inf')
         best_ratio = (1, 1)
         area = width * height
@@ -229,45 +236,36 @@ class VinternOCRModel:
                     best_ratio = ratio
         return best_ratio
 
-    def dynamic_preprocess(self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
-        """
-        Dynamically preprocess the image into blocks based on aspect ratio.
-        """
+    def dynamic_preprocess(self, image: Image.Image, min_num: int = 1, max_num: int = 12, image_size: int = 448, use_thumbnail: bool = False) -> List[Image.Image]:
         orig_width, orig_height = image.size
         aspect_ratio = orig_width / orig_height
 
-        # Calculate possible grid sizes
-        target_ratios = set(
+        target_ratios = [
             (i, j) for n in range(min_num, max_num + 1)
             for i in range(1, n + 1)
             for j in range(1, n + 1)
             if i * j <= max_num and i * j >= min_num
-        )
-        target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
+        ]
+        target_ratios.sort(key=lambda x: x[0] * x[1])
 
-        # Find the closest aspect ratio to the target
         target_aspect_ratio = self.find_closest_aspect_ratio(
             aspect_ratio, target_ratios, orig_width, orig_height, image_size)
 
-        # Calculate the target width and height
         target_width = image_size * target_aspect_ratio[0]
         target_height = image_size * target_aspect_ratio[1]
         blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
 
-        # Resize the image
         resized_img = image.resize((target_width, target_height))
 
-        # Split the image into blocks
-        processed_images = []
-        for i in range(blocks):
-            box = (
+        processed_images = [
+            resized_img.crop((
                 (i % target_aspect_ratio[0]) * image_size,
                 (i // target_aspect_ratio[0]) * image_size,
                 ((i % target_aspect_ratio[0]) + 1) * image_size,
                 ((i // target_aspect_ratio[0]) + 1) * image_size
-            )
-            split_img = resized_img.crop(box)
-            processed_images.append(split_img)
+            ))
+            for i in range(blocks)
+        ]
 
         if use_thumbnail and len(processed_images) != 1:
             thumbnail_img = image.resize((image_size, image_size))
@@ -275,40 +273,27 @@ class VinternOCRModel:
 
         return processed_images
 
-    def load_image(self, image_file, input_size=448, max_num=30):
-        """
-        Loads and preprocesses the image for OCR.
-        Handles block-based dynamic preprocessing and applies necessary transformations.
-        """
+    def load_image(self, image_file: np.ndarray, input_size: int = 448, max_num: int = 30) -> Tensor:
         if isinstance(image_file, np.ndarray):
-            # Convert NumPy array to PIL Image
             image = Image.fromarray(cv2.cvtColor(image_file, cv2.COLOR_BGR2RGB))
         elif isinstance(image_file, Image.Image):
             image = image_file
         else:
             raise ValueError("Unsupported image format. Provide a NumPy array or PIL Image.")
 
-        transform = self.build_transform(input_size=input_size)
-
-        # Dynamic preprocessing
         images = self.dynamic_preprocess(
             image, image_size=input_size, use_thumbnail=True, max_num=max_num
         )
 
-        # Apply transformations to each block
         try:
-            pixel_values = [transform(img) for img in images]
-            pixel_values = torch.stack(pixel_values)
+            pixel_values = torch.stack([self.transform(img) for img in images])
         except Exception as e:
             raise Exception(f"Error during image transformation: {e}")
 
         return pixel_values
 
-    def process_image(self, image_file=None, custom_prompt=None, input_size=448, max_num=30):
-        """
-        Process the input image and generate a response from the model.
-        Optionally, the image can be omitted by passing None, and a custom prompt can be set.
-        """
+    @torch.no_grad()
+    def process_image(self, image_file: Optional[np.ndarray] = None, custom_prompt: Optional[str] = None, input_size: int = 448, max_num: int = 30) -> str:
         prompt = custom_prompt if custom_prompt else self.default_prompt
 
         if image_file is not None:
@@ -316,11 +301,11 @@ class VinternOCRModel:
             pixel_values = pixel_values.to(torch.bfloat16).to(self.device)
             question = "<image>\n" + prompt
         else:
-            pixel_values = None  # No image provided
+            pixel_values = None
             question = prompt
 
         generation_config = {
-            "max_new_tokens": 4096,  # Adjust as needed
+            "max_new_tokens": 4096,
             "do_sample": False,
             "num_beams": 2,
             "repetition_penalty": 1.2,
@@ -328,19 +313,187 @@ class VinternOCRModel:
             "top_p": 1.0,
         }
 
-        with torch.no_grad():
-            response = self.model.chat(
-                self.tokenizer,
-                pixel_values,
-                question,
-                history=None,
-                generation_config=generation_config,
-            )
-
-        # Clear GPU cache
-        torch.cuda.empty_cache()
+        response = self.model.chat(
+            self.tokenizer,
+            pixel_values,
+            question,
+            history=None,
+            generation_config=generation_config,
+        )
 
         return response
+
+# class VinternOCRModel:
+#     def __init__(self, model_path="5CD-AI/Vintern-1B-v3"):
+#         """
+#         Initialize the model and tokenizer.
+#         """
+#         self.default_prompt = (
+#             "Hãy trích xuất toàn bộ chi tiết của bức ảnh này theo đúng thứ tự của nội dung và đầy đủ trong ảnh, "
+#             "đảm bảo đúng chính tả. Không bình luận gì thêm. "
+#             "Chỉ trả lại bằng tiếng Việt.\n"
+#             "Lưu ý: lấy cụ thể các thông tin trên thẻ một cách chính xác theo từng trường:\n"
+#         )
+#         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#         self.model_path = model_path
+#         self.model = AutoModel.from_pretrained(
+#             model_path,
+#             torch_dtype=torch.bfloat16,
+#             low_cpu_mem_usage=True,
+#             trust_remote_code=True,
+#         ).to(self.device)
+#         self.model.eval()
+
+#         self.tokenizer = AutoTokenizer.from_pretrained(
+#             model_path, trust_remote_code=True, use_fast=False
+#         )
+#         self.tokenizer.model_max_length = 20480
+        
+
+#     def build_transform(self, input_size):
+#         """
+#         Create a transformation pipeline to process input images as PIL Images.
+#         """
+#         MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
+#         transform = T.Compose([
+#             T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+#             T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+#             T.ToTensor(),
+#             T.Normalize(mean=MEAN, std=STD)
+#         ])
+#         return transform
+
+#     def find_closest_aspect_ratio(self, aspect_ratio, target_ratios, width, height, image_size):
+#         """
+#         Find the closest aspect ratio from target ratios.
+#         """
+#         best_ratio_diff = float('inf')
+#         best_ratio = (1, 1)
+#         area = width * height
+#         for ratio in target_ratios:
+#             target_aspect_ratio = ratio[0] / ratio[1]
+#             ratio_diff = abs(aspect_ratio - target_aspect_ratio)
+#             if ratio_diff < best_ratio_diff:
+#                 best_ratio_diff = ratio_diff
+#                 best_ratio = ratio
+#             elif ratio_diff == best_ratio_diff:
+#                 if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
+#                     best_ratio = ratio
+#         return best_ratio
+
+#     def dynamic_preprocess(self, image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
+#         """
+#         Dynamically preprocess the image into blocks based on aspect ratio.
+#         """
+#         orig_width, orig_height = image.size
+#         aspect_ratio = orig_width / orig_height
+
+#         # Calculate possible grid sizes
+#         target_ratios = set(
+#             (i, j) for n in range(min_num, max_num + 1)
+#             for i in range(1, n + 1)
+#             for j in range(1, n + 1)
+#             if i * j <= max_num and i * j >= min_num
+#         )
+#         target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
+
+#         # Find the closest aspect ratio to the target
+#         target_aspect_ratio = self.find_closest_aspect_ratio(
+#             aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+
+#         # Calculate the target width and height
+#         target_width = image_size * target_aspect_ratio[0]
+#         target_height = image_size * target_aspect_ratio[1]
+#         blocks = target_aspect_ratio[0] * target_aspect_ratio[1]
+
+#         # Resize the image
+#         resized_img = image.resize((target_width, target_height))
+
+#         # Split the image into blocks
+#         processed_images = []
+#         for i in range(blocks):
+#             box = (
+#                 (i % target_aspect_ratio[0]) * image_size,
+#                 (i // target_aspect_ratio[0]) * image_size,
+#                 ((i % target_aspect_ratio[0]) + 1) * image_size,
+#                 ((i // target_aspect_ratio[0]) + 1) * image_size
+#             )
+#             split_img = resized_img.crop(box)
+#             processed_images.append(split_img)
+
+#         if use_thumbnail and len(processed_images) != 1:
+#             thumbnail_img = image.resize((image_size, image_size))
+#             processed_images.append(thumbnail_img)
+
+#         return processed_images
+
+#     def load_image(self, image_file, input_size=448, max_num=30):
+#         """
+#         Loads and preprocesses the image for OCR.
+#         Handles block-based dynamic preprocessing and applies necessary transformations.
+#         """
+#         if isinstance(image_file, np.ndarray):
+#             # Convert NumPy array to PIL Image
+#             image = Image.fromarray(cv2.cvtColor(image_file, cv2.COLOR_BGR2RGB))
+#         elif isinstance(image_file, Image.Image):
+#             image = image_file
+#         else:
+#             raise ValueError("Unsupported image format. Provide a NumPy array or PIL Image.")
+
+#         transform = self.build_transform(input_size=input_size)
+
+#         # Dynamic preprocessing
+#         images = self.dynamic_preprocess(
+#             image, image_size=input_size, use_thumbnail=True, max_num=max_num
+#         )
+
+#         # Apply transformations to each block
+#         try:
+#             pixel_values = [transform(img) for img in images]
+#             pixel_values = torch.stack(pixel_values)
+#         except Exception as e:
+#             raise Exception(f"Error during image transformation: {e}")
+
+#         return pixel_values
+
+#     def process_image(self, image_file=None, custom_prompt=None, input_size=448, max_num=30):
+#         """
+#         Process the input image and generate a response from the model.
+#         Optionally, the image can be omitted by passing None, and a custom prompt can be set.
+#         """
+#         prompt = custom_prompt if custom_prompt else self.default_prompt
+
+#         if image_file is not None:
+#             pixel_values = self.load_image(image_file, input_size, max_num)
+#             pixel_values = pixel_values.to(torch.bfloat16).to(self.device)
+#             question = "<image>\n" + prompt
+#         else:
+#             pixel_values = None  # No image provided
+#             question = prompt
+
+#         generation_config = {
+#             "max_new_tokens": 4096,  # Adjust as needed
+#             "do_sample": False,
+#             "num_beams": 2,
+#             "repetition_penalty": 1.2,
+#             "temperature": 0.2,
+#             "top_p": 1.0,
+#         }
+
+#         with torch.no_grad():
+#             response = self.model.chat(
+#                 self.tokenizer,
+#                 pixel_values,
+#                 question,
+#                 history=None,
+#                 generation_config=generation_config,
+#             )
+
+#         # Clear GPU cache
+#         torch.cuda.empty_cache()
+
+#         return response
 
 
 class EraxLLMVison:
