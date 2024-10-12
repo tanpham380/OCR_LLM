@@ -19,12 +19,12 @@ def process_image(image):
     If the detected side is not the front, crop half of the image.
     Returns the processed image.
     """
-    # Convert image from RGB to BGR
-    # image_bgr = cv2.cvtColor(image, cv2.COLOR_BGR2BGR)
+    # Convert image from RGB to BGR for OpenCV processing
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
     # Detect and rectify the image
-    detected_image, is_front = idcard_detect.detect(image)
-    if detected_image is None:
+    detected_image_bgr, is_front = idcard_detect.detect(image_bgr)
+    if detected_image_bgr is None:
         return None  # Handle case where detection fails
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -32,22 +32,25 @@ def process_image(image):
     # If is_front is False, crop half of the detected image
     if not is_front:
         # For example, crop the lower half of the image
-        height, width = detected_image.shape[:2]
+        height, width = detected_image_bgr.shape[:2]
         cropped_height = height // 2
-        detected_image = detected_image[:cropped_height, :]
+        detected_image_bgr = detected_image_bgr[:cropped_height, :]
         # Alternatively, you can decide which half to crop based on your requirements
 
     # Proceed with orientation correction
-    orientation_res, _ = orientation_engine(detected_image)
+    orientation_res, _ = orientation_engine(detected_image_bgr)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     orientation_res = float(orientation_res)
     if orientation_res != 0:
-        detected_image = rotate_image(detected_image, orientation_res)
+        detected_image_bgr = rotate_image(detected_image_bgr, orientation_res)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    return detected_image
+    # Convert the processed image back to RGB before returning
+    detected_image_rgb = cv2.cvtColor(detected_image_bgr, cv2.COLOR_BGR2RGB)
+
+    return detected_image_rgb
 
 def merge_images_vertically(image1, image2):
     """
@@ -64,7 +67,11 @@ def merge_images_vertically(image1, image2):
 
     # Concatenate images vertically
     merged_image = np.vstack((resized_image1, resized_image2))
-    cv2.imwrite("test.png", merged_image)
+
+    # Convert merged image to BGR before saving with OpenCV
+    merged_image_bgr = cv2.cvtColor(merged_image, cv2.COLOR_RGB2BGR)
+    cv2.imwrite("test.png", merged_image_bgr)
+
     return merged_image
 
 def check_and_process(image1, image2):
