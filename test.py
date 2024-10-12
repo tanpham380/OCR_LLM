@@ -13,6 +13,7 @@ idcard_detect = ImageRectify(crop_expansion_factor = 0.000001)
 orientation_engine = RapidOrientation()
 
 def process_image(image):
+    
     start_time = time.time()  # Start timing
     
     image_bgr = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

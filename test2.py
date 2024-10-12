@@ -14,6 +14,9 @@ idcard_detect = ImageRectify(crop_expansion_factor=0.000001)
 orientation_engine = RapidOrientation()
 
 def process_images(image1, image2):
+    if image1 is None or image2 is None:
+        return None, None, None  # Return None if images are not provided
+
     start_time = time.time()  # Start timing
 
     # Convert images from RGB to BGR
@@ -73,25 +76,43 @@ def merge_images_vertically(image1, image2):
 
     # Concatenate images vertically
     merged_image = np.vstack((resized_image1, resized_image2))
+    # Optionally save the merged image for debugging
     cv2.imwrite("test.png", merged_image)
     return merged_image
 
-# Create Gradio interface
-demo = gr.Interface(
-    fn=process_images,  # Function to call when images are uploaded
-    inputs=[
-        gr.Image(type="numpy", label="Upload Image 1", interactive=True),  # First image input
-        gr.Image(type="numpy", label="Upload Image 2", interactive=True)   # Second image input
-    ],
-    outputs=[
-        gr.Image(type="numpy", label="Merged Image", visible=False),                # Merged image output
-        gr.Textbox(label="Generated Text from Vision Model", visible=False),        # Text output
-        gr.Textbox(label="Processing Time", visible=False)                          # Time output
-    ],
-    live=True,  # This allows continuous updates based on the input
-    title="Vision-based Chat with LLM",  # Title of the demo
-    description="Upload two images, which will be merged and processed by the vision-based LLM to generate text and see the processing time."
-)
+# Create Gradio interface using Blocks for better control
+with gr.Blocks() as demo:
+    gr.Markdown("# Vision-based Chat with LLM")
+    gr.Markdown("Upload two images, which will be merged and processed by the vision-based LLM to generate text and see the processing time.")
+
+    with gr.Row():
+        image_input1 = gr.Image(type="numpy", label="Upload Image 1")
+        image_input2 = gr.Image(type="numpy", label="Upload Image 2")
+
+    process_button = gr.Button("Process Images")
+
+    # Outputs are hidden initially
+    merged_image_output = gr.Image(type="numpy", label="Merged Image", visible=False)
+    text_output = gr.Textbox(label="Generated Text from Vision Model", visible=False)
+    time_output = gr.Textbox(label="Processing Time", visible=False)
+
+    # Define the function to update the visibility of outputs
+    def update_visibility(merged_image, text, time_message):
+        if merged_image is None:
+            return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+        else:
+            return gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)
+
+    # When the button is clicked, process the images and update outputs
+    process_button.click(
+        fn=process_images,
+        inputs=[image_input1, image_input2],
+        outputs=[merged_image_output, text_output, time_output]
+    ).then(
+        fn=update_visibility,
+        inputs=[merged_image_output, text_output, time_output],
+        outputs=[merged_image_output, text_output, time_output]
+    )
 
 # Launch the demo with external accessibility
 if __name__ == "__main__":
