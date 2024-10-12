@@ -305,7 +305,7 @@ class VinternOCRModel:
             question = prompt
 
         generation_config = {
-            "max_new_tokens": 4096,
+            "max_new_tokens": 10240,
             "do_sample": False,
             "num_beams": 2,
             "repetition_penalty": 1.2,

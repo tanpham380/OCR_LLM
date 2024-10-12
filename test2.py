@@ -13,6 +13,29 @@ llm_vison = VinternOCRModel("5CD-AI/Vintern-4B-v1")
 idcard_detect = ImageRectify(crop_expansion_factor=0.000001)
 orientation_engine = RapidOrientation()
 
+def process_image(image):
+    """
+    Process a single image: convert color, detect and rectify, correct orientation.
+    Returns the processed image.
+    """
+    # Convert image from RGB to BGR
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # Detect and rectify the image
+    detected_image, _ = idcard_detect.detect(image_bgr)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    orientation_res, _ = orientation_engine(detected_image)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    orientation_res = float(orientation_res)
+    if orientation_res != 0:
+        detected_image = rotate_image(detected_image, orientation_res)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return detected_image
+
 def merge_images_vertically(image1, image2):
     """
     Merge two images vertically with appropriate resizing.
@@ -28,54 +51,37 @@ def merge_images_vertically(image1, image2):
 
     # Concatenate images vertically
     merged_image = np.vstack((resized_image1, resized_image2))
+    cv2.imwrite("test.png" ,merged_image )
     return merged_image
 
-def check_and_merge(image1, image2):
+def check_and_process(image1, image2):
     """
-    Merge images and display the merged image immediately.
+    Process each image individually, merge them, and then process the merged image with the LLM.
     """
     if image1 is not None and image2 is not None:
-        merged_image = merge_images_vertically(image1, image2)
-        return merged_image
+        start_time = time.time()
+
+        # Process each image individually
+        processed_image1 = process_image(image1)
+        processed_image2 = process_image(image2)
+
+        # Merge the processed images
+        merged_image = merge_images_vertically(processed_image1, processed_image2)
+
+        # Process the merged image with LLM
+        text_from_vision_model = llm_vison.process_image(merged_image)
+        total_time = time.time() - start_time
+        processing_time_message = f"Processing Time: {total_time:.2f} seconds"
+
+        # Return the merged image, generated text, and processing time
+        return merged_image, text_from_vision_model, processing_time_message
     else:
-        return None
-
-def process_after_merge(merged_image):
-    """
-    Process the merged image to generate text output and processing time.
-    """
-    if merged_image is None:
-        return None, None
-
-    start_time = time.time()
-
-    # Convert image from RGB to BGR
-    image_bgr = cv2.cvtColor(merged_image, cv2.COLOR_RGB2BGR)
-
-    # Detect and rectify the merged image
-    detected_image, _ = idcard_detect.detect(image_bgr)
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    orientation_res, _ = orientation_engine(detected_image)
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    orientation_res = float(orientation_res)
-    if orientation_res != 0:
-        detected_image = rotate_image(detected_image, orientation_res)
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    # Process the detected image with LLM
-    text_from_vision_model = llm_vison.process_image(detected_image)
-    total_time = time.time() - start_time
-    processing_time_message = f"Processing Time: {total_time:.2f} seconds"
-
-    return text_from_vision_model, processing_time_message
+        return None, None, None
 
 # Create Gradio interface using Blocks
 with gr.Blocks() as demo:
     gr.Markdown("# Vision-based Chat with LLM")
-    gr.Markdown("Upload two images, which will be merged and processed by the vision-based LLM to generate text and see the processing time.")
+    gr.Markdown("Upload two images, which will be individually processed, merged, and then passed to the vision-based LLM to generate text and see the processing time.")
 
     with gr.Row():
         image_input1 = gr.Image(type="numpy", label="Upload Image 1")
@@ -87,27 +93,21 @@ with gr.Blocks() as demo:
 
     image_inputs = [image_input1, image_input2]
 
-    # When images change, merge and display the merged image
+    # When images change, process and display the outputs
+    def update_outputs(image1, image2):
+        merged_image, text, time_message = check_and_process(image1, image2)
+        return merged_image, text, time_message
+
     image_input1.change(
-        fn=check_and_merge,
+        fn=update_outputs,
         inputs=image_inputs,
-        outputs=merged_image_output
-    ).then(
-        fn=process_after_merge,
-        inputs=merged_image_output,
-        outputs=[text_output, time_output],
-        queue=True
+        outputs=[merged_image_output, text_output, time_output]
     )
 
     image_input2.change(
-        fn=check_and_merge,
+        fn=update_outputs,
         inputs=image_inputs,
-        outputs=merged_image_output
-    ).then(
-        fn=process_after_merge,
-        inputs=merged_image_output,
-        outputs=[text_output, time_output],
-        queue=True
+        outputs=[merged_image_output, text_output, time_output]
     )
 
 # Launch the demo with external accessibility
