@@ -77,10 +77,10 @@ def merge_images_vertically(image1, image2):
     # Concatenate images vertically
     merged_image = np.vstack((resized_image1, resized_image2))
     # Optionally save the merged image for debugging
-    cv2.imwrite("test.png", merged_image)
+    # cv2.imwrite("test.png", merged_image)
     return merged_image
 
-# Create Gradio interface using Blocks for better control
+# Create Gradio interface using Blocks
 with gr.Blocks() as demo:
     gr.Markdown("# Vision-based Chat with LLM")
     gr.Markdown("Upload two images, which will be merged and processed by the vision-based LLM to generate text and see the processing time.")
@@ -89,28 +89,28 @@ with gr.Blocks() as demo:
         image_input1 = gr.Image(type="numpy", label="Upload Image 1")
         image_input2 = gr.Image(type="numpy", label="Upload Image 2")
 
-    process_button = gr.Button("Process Images")
+    # Outputs are always visible
+    merged_image_output = gr.Image(type="numpy", label="Merged Image")
+    text_output = gr.Textbox(label="Generated Text from Vision Model")
+    time_output = gr.Textbox(label="Processing Time")
 
-    # Outputs are hidden initially
-    merged_image_output = gr.Image(type="numpy", label="Merged Image", visible=False)
-    text_output = gr.Textbox(label="Generated Text from Vision Model", visible=False)
-    time_output = gr.Textbox(label="Processing Time", visible=False)
-
-    # Define the function to update the visibility of outputs
-    def update_visibility(merged_image, text, time_message):
-        if merged_image is None:
-            return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+    # Define a function to check if both images are uploaded and process them
+    def check_and_process(image1, image2):
+        if image1 is not None and image2 is not None:
+            return process_images(image1, image2)
         else:
-            return gr.update(visible=True), gr.update(visible=True), gr.update(visible=True)
+            return None, None, None
 
-    # When the button is clicked, process the images and update outputs
-    process_button.click(
-        fn=process_images,
+    # Set up event listeners for when the images are updated
+    image_input1.change(
+        fn=check_and_process,
         inputs=[image_input1, image_input2],
         outputs=[merged_image_output, text_output, time_output]
-    ).then(
-        fn=update_visibility,
-        inputs=[merged_image_output, text_output, time_output],
+    )
+
+    image_input2.change(
+        fn=check_and_process,
+        inputs=[image_input1, image_input2],
         outputs=[merged_image_output, text_output, time_output]
     )
 
