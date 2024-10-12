@@ -16,15 +16,21 @@ orientation_engine = RapidOrientation()
 def process_image(image):
     """
     Process a single image: convert color, detect and rectify, correct orientation.
+    If the image is not the front side, crop half of it.
     Returns the processed image.
     """
     # Convert image from RGB to BGR
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
     # Detect and rectify the image
-    detected_image, _ = idcard_detect.detect(image_bgr)
+    detected_image, is_front = idcard_detect.detect(image_bgr)
+    if detected_image is None:
+        return None  # Return None if detection failed
+
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+    # Correct orientation
     orientation_res, _ = orientation_engine(detected_image)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -33,6 +39,12 @@ def process_image(image):
         detected_image = rotate_image(detected_image, orientation_res)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+    # If the image is not the front side, crop half of it
+    if not is_front:
+        height, width = detected_image.shape[:2]
+        # Crop to the top half (adjust as needed)
+        detected_image = detected_image[:height // 2, :]
 
     return detected_image
 
@@ -51,7 +63,7 @@ def merge_images_vertically(image1, image2):
 
     # Concatenate images vertically
     merged_image = np.vstack((resized_image1, resized_image2))
-    cv2.imwrite("test.png" ,merged_image )
+    cv2.imwrite("test.png", merged_image)
     return merged_image
 
 def check_and_process(image1, image2):
@@ -64,6 +76,10 @@ def check_and_process(image1, image2):
         # Process each image individually
         processed_image1 = process_image(image1)
         processed_image2 = process_image(image2)
+
+        # Check if processing was successful
+        if processed_image1 is None or processed_image2 is None:
+            return None, "Error in processing images.", None
 
         # Merge the processed images
         merged_image = merge_images_vertically(processed_image1, processed_image2)

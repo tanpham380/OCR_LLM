@@ -320,6 +320,7 @@ class VinternOCRModel:
             history=None,
             generation_config=generation_config,
         )
+        print(response)
 
         return response
 
