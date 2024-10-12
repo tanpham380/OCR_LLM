@@ -196,7 +196,7 @@ class VinternOCRModel:
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=True, use_fast=False
         )
-        self.tokenizer.model_max_length = 4400
+        self.tokenizer.model_max_length = 20480
 
     def build_transform(self, input_size):
         """
