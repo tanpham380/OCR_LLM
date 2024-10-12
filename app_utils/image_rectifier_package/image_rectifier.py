@@ -8,6 +8,11 @@ from config import CORNER_MODEL_PATH, CORNER_MODEL_PATH2
 
 import torch
 
+import torch
+import numpy as np
+from ultralytics import YOLO
+from typing import Optional, Tuple
+
 class ImageRectify:
     def __init__(self, crop_expansion_factor: float = 0.05):
         self.CORNER_MODEL = self.load_yolov8_model(CORNER_MODEL_PATH)
@@ -23,7 +28,7 @@ class ImageRectify:
     def process_normal_yolo(self, image: np.ndarray) -> Tuple[np.ndarray, str]:
         result = self.CORNER_MODEL(image)[0]
         if not result.boxes:
-            return image, False
+            return np.array([]), ""
         class_index = int(result.boxes.cls[0])
         detected_name = result.names[class_index]
         boxes = result.boxes.xyxy.cpu().numpy()
@@ -48,7 +53,7 @@ class ImageRectify:
     @torch.no_grad()
     def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, bool]]:
         boxes, detected_name = self.process_normal_yolo(image)
-        if boxes is None:
+        if len(boxes) == 0:
             return None
 
         box = torch.from_numpy(boxes[0]).float()
