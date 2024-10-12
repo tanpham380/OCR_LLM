@@ -205,7 +205,7 @@ class VinternOCRModel:
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=True, use_fast=False
         )
-        self.tokenizer.model_max_length = 20480
+        self.tokenizer.model_max_length = 8124
 
         # Pre-compile the transform function
         self.transform = self.build_transform(448)
@@ -293,7 +293,7 @@ class VinternOCRModel:
         return pixel_values
 
     @torch.no_grad()
-    def process_image(self, image_file: Optional[np.ndarray] = None, custom_prompt: Optional[str] = None, input_size: int = 448, max_num: int = 30) -> str:
+    def process_image(self, image_file: Optional[np.ndarray] = None, custom_prompt: Optional[str] = None, input_size: int = 448, max_num: int = 24) -> str:
         prompt = custom_prompt if custom_prompt else self.default_prompt
 
         if image_file is not None:
@@ -305,7 +305,7 @@ class VinternOCRModel:
             question = prompt
 
         generation_config = {
-            "max_new_tokens": 10240,
+            "max_new_tokens": 8192,
             "do_sample": False,
             "num_beams": 2,
             "repetition_penalty": 1.2,
@@ -320,7 +320,6 @@ class VinternOCRModel:
             history=None,
             generation_config=generation_config,
         )
-        print(response)
 
         return response
 

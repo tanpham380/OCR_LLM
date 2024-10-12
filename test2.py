@@ -30,12 +30,7 @@ def process_image(image):
         torch.cuda.empty_cache()
 
     # If is_front is False, crop half of the detected image
-    if not is_front:
-        # For example, crop the lower half of the image
-        height, width = detected_image_bgr.shape[:2]
-        cropped_height = height // 2
-        detected_image_bgr = detected_image_bgr[:cropped_height, :]
-        # Alternatively, you can decide which half to crop based on your requirements
+
 
     # Proceed with orientation correction
     orientation_res, _ = orientation_engine(detected_image_bgr)
@@ -47,7 +42,11 @@ def process_image(image):
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    # Convert the processed image back to RGB before returning
+    if not is_front:
+        # For example, crop the lower half of the image
+        height, width = detected_image_bgr.shape[:2]
+        cropped_height = height // 2
+        detected_image_bgr = detected_image_bgr[:cropped_height, :]
     detected_image_rgb = cv2.cvtColor(detected_image_bgr, cv2.COLOR_BGR2RGB)
 
     return detected_image_rgb
