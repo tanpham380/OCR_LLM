@@ -78,8 +78,9 @@ async def scan(image_paths: List[str]) -> dict:
 
         llm_controller.set_model('qwen2.5')
         llm_response = await llm_controller.send_message()
-
+        print(llm_response)
         message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
+        print(message_content)
         if not message_content.get('date_of_expiration'):
             day_of_birth = message_content.get('day_of_birth', '')
             if day_of_birth:
@@ -139,15 +140,25 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
         raise e
 
 def clean_message_content(message_content: str) -> dict:
-    match = re.search(r'```json\s*(\{.*?\})\s*```', message_content, re.DOTALL)
-    if match:
-        json_content = match.group(1)
-    else:
-        match = re.search(r'(\{.*?\})', message_content, re.DOTALL)
-        json_content = match.group(1) if match else {}
-
     try:
+        # First try to extract valid JSON from within backticks
+        match = re.search(r'```json\s*(\{.*?\})\s*```', message_content, re.DOTALL)
+        if match:
+            json_content = match.group(1)
+        else:
+            # If no backticks, attempt to extract the JSON directly
+            match = re.search(r'(\{.*?\})', message_content, re.DOTALL)
+            json_content = match.group(1) if match else "{}"  # Default to empty JSON if not found
+
+        print(f"Extracted JSON content: {json_content}")
+
+        # Fix common issues like using single quotes
+        json_content = json_content.replace("'", '"')
+        print(f"Corrected JSON content: {json_content}")
+
+        # Try to load the JSON content
         return json.loads(json_content)
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing JSON content: {e}")
         raise e
+

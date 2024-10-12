@@ -77,8 +77,8 @@ class OcrController:
 
     async def _scan_with_package_ocr(self, img: np.ndarray, mat_sau: bool = False) -> str:
         try:
-            # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img_original = Image.fromarray(img)
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img_original = Image.fromarray(img_gray)
             # messages = self.vintern_llm.set_prompt_messages(img)
             
             ocr_result = await asyncio.to_thread(
@@ -86,7 +86,7 @@ class OcrController:
             )
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            #vision_model_result = await asyncio.to_thread(self.vintern_ocr.process_image, img)
+            vision_model_result = await asyncio.to_thread(self.vintern_ocr.process_image, img)
             text_lines = ocr_result[0].text_lines
             filtered_text_lines = [line for line in text_lines if line.confidence >= 0.5]
             # if mat_sau:
@@ -107,11 +107,11 @@ class OcrController:
 
             formatted_text = "\n".join(line.text for line in filtered_text_lines)
             formatted_section = f"Trích thông tin SuryaOCR:\n{formatted_text}\n\n"
-            # if isinstance(vision_model_result, list):
-            #     vision_model_text = f"Trích thông tin 2 :\n{str(vision_model_result)}\n\n"
-            # else:
-            #     vision_model_text = f"Trích thông tin 2 :\n{vision_model_result}\n\n"
-            combined_text = formatted_section  #+ "\n\n" + Vietocr_text  #+ "\n\n" + vision_model_text 
+            if isinstance(vision_model_result, list):
+                vision_model_text = f"Trích thông tin OCR LLM :\n{str(vision_model_result)}\n\n"
+            else:
+                vision_model_text = f"Trích thông tin OCR LLM  :\n{vision_model_result}\n\n"
+            combined_text = formatted_section  + "\n\n" + vision_model_text   #+ "\n\n" + Vietocr_text 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             return combined_text
