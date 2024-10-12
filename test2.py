@@ -20,10 +20,10 @@ def process_image(image):
     Returns the processed image.
     """
     # Convert image from RGB to BGR
-    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    # image_bgr = cv2.cvtColor(image, cv2.COLOR_BGR2BGR)
 
     # Detect and rectify the image
-    detected_image, is_front = idcard_detect.detect(image_bgr)
+    detected_image, is_front = idcard_detect.detect(image)
     if detected_image is None:
         return None  # Handle case where detection fails
     if torch.cuda.is_available():
