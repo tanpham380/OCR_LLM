@@ -7,7 +7,6 @@ from typing import Any, Optional, Tuple
 from app_utils.logging import get_logger
 import config as cfg
 from app_utils.image_rectifier_package.image_rectifier import ImageRectify
-from controller.ocr_controller import OcrController
 from qreader import QReader
 from app_utils.file_handler import (
     crop_image_qr,
@@ -17,7 +16,6 @@ from app_utils.file_handler import (
     scale_up_img
 )
 
-# from deepface import DeepFace
 
 
 logger = get_logger(__name__)
@@ -32,16 +30,11 @@ class Detector:
         Initializes the Detector class with the necessary components for card detection, OCR, and QR code reading.
         """
         self.card_detecter = ImageRectify()
-        self.ocr_controller = OcrController()
         self.qreader = QReader(
             model_size="l", min_confidence=0.7, reencode_to="cp65001"
         )
 
         self.ocr_text = None
-
-    def get_ocr(self) -> OcrController:
-        """Returns the OCR controller instance."""
-        return self.ocr_controller
 
     def get_qreader(self) -> QReader:
         """Returns the QR reader instance."""
@@ -152,9 +145,7 @@ class Detector:
 
                 scaled_img = scale_up_img(enhanced_img, 480)
                 return process_and_decode(scaled_img) or ""
-            print(text_qr)
-            return ""  # Return empty if no QR code was detected
-
+            return "" 
         except Exception as ex:
             logger.error(f"QR Code reading failed: {ex}")
             return ""

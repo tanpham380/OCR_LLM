@@ -114,26 +114,48 @@ class LlmController:
         try:
             front_ocr = (
                 ocr_results.get("front_side_ocr", {})
-                .get("package_ocr", "")
-                .replace("\\", "")
+                # .replace("\\", "")
             )
-            back_ocr = (
-                ocr_results.get("back_side_ocr", {})
-                .get("package_ocr", "")
-                .replace("\\", "")
-            )
+            # back_ocr = (
+            #     ocr_results.get("back_side_ocr", {})
+            #     .get("package_ocr", "")
+            #     .replace("\\", "")
+            # )
 
+            # front_qr_code_data = ocr_results.get("front_side_qr", "")
+            # back_qr_code_data = ocr_results.get("back_side_qr", "")
+
+            # qr_code_data = (
+            #     front_qr_code_data.strip()
+            #     if front_qr_code_data.strip()
+            #     else back_qr_code_data.strip()
+            # )
+            # if isinstance(qr_code_data, tuple):
+            #     qr_code_data = str(qr_code_data)
+            # if isinstance(qr_code_data, list):
+            #     qr_code_data = qr_code_data[0] if qr_code_data else ""
+                
+                
             front_qr_code_data = ocr_results.get("front_side_qr", "")
             back_qr_code_data = ocr_results.get("back_side_qr", "")
+
+            # Ensure qr_code_data is a string before stripping
+            if isinstance(front_qr_code_data, list):
+                front_qr_code_data = front_qr_code_data[0] if front_qr_code_data else ""
+            if isinstance(back_qr_code_data, list):
+                back_qr_code_data = back_qr_code_data[0] if back_qr_code_data else ""
 
             qr_code_data = (
                 front_qr_code_data.strip()
                 if front_qr_code_data.strip()
                 else back_qr_code_data.strip()
             )
+
+            # The rest of your code remains the same
             if isinstance(qr_code_data, tuple):
                 qr_code_data = str(qr_code_data)
-
+            if isinstance(qr_code_data, list):
+                qr_code_data = qr_code_data[0] if qr_code_data else "" 
             # Analyze QR code data
             qr_parts = qr_code_data.split("|")
             id_number = qr_parts[0] if len(qr_parts) > 0 else ""
@@ -148,8 +170,8 @@ class LlmController:
                 "Data extracted from OCR data and QR data of the Vietnamese Citizen ID Card (CCCD):\n\n"
                 "### Data from front side OCR:\n"
                 f"{front_ocr}\n\n"
-                "### Data from back side OCR:\n"
-                f"{back_ocr}\n\n"
+                # "### Data from back side OCR:\n"
+                # f"{back_ocr}\n\n"
                 "QR code data is formatted as follows, with corresponding values:\n"
                 f"- id_number: {id_number}\n"
                 f"- id_number_old: {id_number_old}\n"

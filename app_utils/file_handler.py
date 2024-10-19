@@ -53,6 +53,39 @@ def secure_file(file: FileStorage) -> str:
     except Exception as e:
         raise Exception(f"Failed to save file: {str(e)}")
 
+# def save_image(image: Union[str, np.ndarray, Image.Image], save_dir: str = TEMP_DIR, format: str = 'PNG', print_path: bool = True) -> str:
+#     """Saves an image to the specified directory with a unique filename."""
+#     if not os.path.isdir(save_dir):
+#         raise ValueError(f"Invalid save directory: {save_dir}")
+    
+#     extension = format.lower() if format.lower() in ['jpeg', 'jpg', 'png'] else "png"
+#     save_path = os.path.join(save_dir, generate_filename(extension))
+    
+#     try:
+#         if isinstance(image, str):
+#             img = cv2.imread(image)
+#             if img is None:
+#                 raise Exception(f"Failed to read image from path: {image}")
+#             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#             Image.fromarray(img).save(save_path, format=format)
+#         elif isinstance(image, np.ndarray):
+#             img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if image.shape[2] == 3 else image
+#             Image.fromarray(img).save(save_path, format=format)
+#         elif isinstance(image, Image.Image):
+#             image.convert("RGB").save(save_path, format=format)
+#         else:
+#             raise ValueError("Unsupported image format.")
+        
+#         if print_path:
+#             file_size = os.path.getsize(save_path)
+#             file_permissions = oct(os.stat(save_path).st_mode)[-3:]
+#             logger.info(f"Saved image - Size: {file_size} bytes, Permissions: {file_permissions}")
+#             logger.info(f"Image saved at {save_path}")
+#         return save_path
+#     except Exception as e:
+#         logger.error(f"Failed to save image: {str(e)}")
+#         raise Exception(f"Failed to save image: {str(e)}")
+
 def save_image(image: Union[str, np.ndarray, Image.Image], save_dir: str = TEMP_DIR, format: str = 'PNG', print_path: bool = True) -> str:
     """Saves an image to the specified directory with a unique filename."""
     if not os.path.isdir(save_dir):
@@ -69,7 +102,14 @@ def save_image(image: Union[str, np.ndarray, Image.Image], save_dir: str = TEMP_
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             Image.fromarray(img).save(save_path, format=format)
         elif isinstance(image, np.ndarray):
-            img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if image.shape[2] == 3 else image
+            # Check if the image is grayscale or RGB
+            if len(image.shape) == 2:  # Grayscale
+                img = image
+            elif len(image.shape) == 3 and image.shape[2] == 3:  # RGB
+                img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            else:
+                raise ValueError("Unsupported image format.")
+            
             Image.fromarray(img).save(save_path, format=format)
         elif isinstance(image, Image.Image):
             image.convert("RGB").save(save_path, format=format)
@@ -85,7 +125,6 @@ def save_image(image: Union[str, np.ndarray, Image.Image], save_dir: str = TEMP_
     except Exception as e:
         logger.error(f"Failed to save image: {str(e)}")
         raise Exception(f"Failed to save image: {str(e)}")
-
 
 
 def load_image(image_input: Any) -> np.ndarray:

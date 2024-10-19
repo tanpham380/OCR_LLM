@@ -18,20 +18,22 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 
 class VinternOCRModel:
     def __init__(self, model_path="app_utils/weights/Vintern-4B-v1", device=None):
-        """
-        Initialize the model and tokenizer with multi-GPU support.
-        """
+        # ...
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_path = model_path
+
+        # Load the tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True, use_fast=False
+        )
+        self.tokenizer2 = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True, use_fast=False
+        )
         self.default_prompt = (
             "Hãy trích xuất toàn bộ thông tin từ bức ảnh này theo đúng thứ tự và nội dung như trong ảnh, đảm bảo đầy đủ và chính xác. "
             "Không thêm bất kỳ bình luận nào khác. "
             "Lưu ý: Đối với 'Nơi thường trú' và 'Quê quán', hãy trích xuất đầy đủ địa chỉ như trong ảnh, bao gồm cả xã, huyện, tỉnh.\n"
         )
-
-        if device is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = device
-        self.model_path = model_path
 
         # Load the model
         self.model = AutoModel.from_pretrained(
@@ -39,11 +41,8 @@ class VinternOCRModel:
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
             trust_remote_code=True,
+            # device_map = "auto"
         ).to(self.device)
-
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path, trust_remote_code=True, use_fast=False
-        )
         self.tokenizer.model_max_length = 8196
 
         
@@ -124,35 +123,6 @@ class VinternOCRModel:
             processed_images.append(thumbnail_img)
 
         return processed_images
-
-    # def load_image(self, image_file, input_size=448, max_num=6):
-    #     """
-    #     Loads and preprocesses the image for OCR.
-    #     Handles block-based dynamic preprocessing and applies necessary transformations.
-    #     """
-    #     if isinstance(image_file, np.ndarray):
-    #         # Convert NumPy array to PIL Image
-    #         image = Image.fromarray(cv2.cvtColor(image_file, cv2.COLOR_BGR2RGB))
-    #     elif isinstance(image_file, Image.Image):
-    #         image = image_file
-    #     else:
-    #         raise ValueError("Unsupported image format. Provide a NumPy array or PIL Image.")
-
-    #     transform = self.build_transform(input_size=input_size)
-
-    #     # Dynamic preprocessing
-    #     images = self.dynamic_preprocess(
-    #         image, image_size=input_size, use_thumbnail=True, max_num=max_num
-    #     )
-    #     # images = images * max(1, torch.cuda.device_count())
-    #     # Apply transformations to each block
-    #     try:
-    #         pixel_values = [transform(img) for img in images]
-    #         pixel_values = torch.stack(pixel_values)
-    #     except Exception as e:
-    #         raise Exception(f"Error during image transformation: {e}")
-
-    #     return pixel_values
     def load_image(self, image_file, input_size=448, max_num=6):
         """
         Loads and preprocesses the image for OCR.
@@ -193,28 +163,20 @@ class VinternOCRModel:
 
         if image_file is not None:
             pixel_values = self.load_image(image_file, input_size, max_num)
-            pixel_values = pixel_values.to(torch.bfloat16).to(self.device)
+            pixel_values = pixel_values.to(torch.bfloat16).to(self.device) 
             question = "<image>\n" + prompt
         else:
             pixel_values = None  # No image provided
             question = prompt
 
-        # generation_config = {
-        #     "max_new_tokens": 8196,
-        #     "do_sample": False,
-        #     "num_beams": 2,
-        #     "repetition_penalty": 2.0,            
-        # }
-        
         generation_config = {
-            "max_new_tokens": 256,
+            "max_new_tokens": 8196,
             "do_sample": False,
-            "num_beams": 1,
+            "num_beams": 2,
             "repetition_penalty": 2.0,            
         }
-        with torch.no_grad():
 
-            response = self.model.chat(
+        response = self.model.chat(
             self.tokenizer,
             pixel_values,
             question,
@@ -222,8 +184,9 @@ class VinternOCRModel:
             generation_config=generation_config,
         )
 
-        # Clear GPU cache
+        # Clear GPU cache after processing
         torch.cuda.empty_cache()
 
         return response
+
 

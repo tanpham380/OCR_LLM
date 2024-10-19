@@ -7,17 +7,20 @@ from controller.llm_vison_future import VinternOCRModel
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import rotate_image
 import torch
-
-# Initialize the LLM Vision model
-llm_vison = VinternOCRModel("app_utils/weights/Vintern-3B-v1-phase4")
-idcard_detect = ImageRectify(crop_expansion_factor=0.0)
-orientation_engine = RapidOrientation()
-det_processor = TextDect_withRapidocr(text_score = 0.6 , det_use_cuda = True)
 from app_utils.ocr_package.model.detection.text_detect import TextDect_withRapidocr
 from typing import List
 import numpy as np
 from PIL import Image
 from app_utils.ocr_package.schema import TextDetectionResult, PolygonBox
+# Initialize the LLM Vision model
+
+
+
+llm_vison = VinternOCRModel("app_utils/weights/Vintern-3B-v1-phase4-2")
+idcard_detect = ImageRectify(crop_expansion_factor=0.0)
+orientation_engine = RapidOrientation()
+det_processor = TextDect_withRapidocr(text_score = 0.6 , det_use_cuda = True)
+
 
 def adjust_bbox_height(bbox_coords, height_adjustment_factor=0.5):
     # Get the y-coordinates from the bbox coordinates
@@ -46,6 +49,11 @@ def batch_text_detection(images: List[Image.Image]) -> List[TextDetectionResult]
         img_array = np.array(img)
         #  img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # Detect text using RapidOCR
+        if img_array.ndim == 2:
+            img_array = np.expand_dims(img_array, axis=-1)
+        elif img_array.ndim != 3:
+            raise ValueError("Invalid image dimensions")
+            
         det_results = det_processor.detect(img_array)
         
         bboxes = []
@@ -69,35 +77,31 @@ def batch_text_detection(images: List[Image.Image]) -> List[TextDetectionResult]
 
 def process_image(image):
     start_time = time.time()  # Start timing
-    # image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    # detected_image, is_front = idcard_detect.detect(image_bgr)
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    detected_image, is_front = idcard_detect.detect(image_bgr)
     # # Giải phóng bộ nhớ CUDA nếu sử dụng GPU
-    # if torch.cuda.is_available():
-    #     torch.cuda.empty_cache()
-    # # Xử lý hướng ảnh
-    # detected_image, is_front = idcard_detect.detect(image_bgr)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    # Xử lý hướng ảnh
 
-    # orientation_res, _ = orientation_engine(detected_image)
-    # orientation_res = float(orientation_res)
+    orientation_res, _ = orientation_engine(detected_image)
+    orientation_res = float(orientation_res)
 
-    # # Xoay ảnh nếu cần thiết
-    # if orientation_res != 0:
-    #     detected_image = rotate_image(detected_image, orientation_res)
-
-    # # Cắt ảnh nếu không phải mặt trước
-    # if not is_front:
-    #     height = detected_image.shape[0] // 2
-    #     detected_image = detected_image[:height, :]
-    #     # Giải phóng bộ nhớ CUDA nếu sử dụng GPU
-    # if torch.cuda.is_available():
-    #     torch.cuda.empty_cache()
-    # # Chuyển đổi ảnh sang RGB trước khi đưa vào mô hình LLM Vision
-    # # image_gray = cv2.cvtColor(detected_image, cv2.COLOR_BAYER_BG2GRAY)
-    # # Convert the detected image to grayscale
+    # Xoay ảnh nếu cần thiết
+    if orientation_res != 0:
+        detected_image = rotate_image(detected_image, orientation_res)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    # Cắt ảnh nếu không phải mặt trước
+    if not is_front:
+        height = detected_image.shape[0] // 2
+        detected_image = detected_image[:height, :]
+        # Giải phóng bộ nhớ CUDA nếu sử dụng GPU
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    det_predictions = batch_text_detection(image_gray)
+    
 
-    # detected_image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     text_from_vision_model = llm_vison.process_image(image_gray)
 
     # Chuyển đổi ảnh sang RGB trước khi hiển thị trên Gradio
