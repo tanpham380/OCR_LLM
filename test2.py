@@ -1,16 +1,19 @@
 import cv2
 import gradio as gr
 import time
+import torch
+import numpy as np
+from multiprocessing import Process, Queue, set_start_method
 from app_utils.image_rectifier_package.image_rectifier import ImageRectify
 from controller.llm_vison_future import VinternOCRModel
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import rotate_image
-import torch
-import numpy as np
 
-# Initialize the LLM Vision model
-llm_vison = VinternOCRModel("5CD-AI/Vintern-4B-v1")
-idcard_detect = ImageRectify(crop_expansion_factor=0.000001)
+# Set the multiprocessing start method to 'spawn' for CUDA compatibility
+if __name__ == "__main__":
+    set_start_method('spawn')
+
+idcard_detect = ImageRectify(crop_expansion_factor=0.02)
 orientation_engine = RapidOrientation()
 
 def process_image(image):
@@ -19,36 +22,28 @@ def process_image(image):
     If the detected side is not the front, crop half of the image.
     Returns the processed image.
     """
-    # Convert image from RGB to BGR for OpenCV processing
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
-    # Detect and rectify the image
     detected_image_bgr, is_front = idcard_detect.detect(image_bgr)
     if detected_image_bgr is None:
-        return None  # Handle case where detection fails
+        return None
+
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    # If is_front is False, crop half of the detected image
-
-
-    # Proceed with orientation correction
     orientation_res, _ = orientation_engine(detected_image_bgr)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
     orientation_res = float(orientation_res)
     if orientation_res != 0:
         detected_image_bgr = rotate_image(detected_image_bgr, orientation_res)
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
 
     if not is_front:
-        # For example, crop the lower half of the image
         height, width = detected_image_bgr.shape[:2]
         cropped_height = height // 2
         detected_image_bgr = detected_image_bgr[:cropped_height, :]
-    detected_image_rgb = cv2.cvtColor(detected_image_bgr, cv2.COLOR_BGR2RGB)
 
+    detected_image_rgb = cv2.cvtColor(detected_image_bgr, cv2.COLOR_BGR2RGB)
     return detected_image_rgb
 
 def merge_images_vertically(image1, image2):
@@ -57,25 +52,28 @@ def merge_images_vertically(image1, image2):
     """
     if image1 is None or image2 is None:
         return None
-    # Ensure both images have the same width
     width = max(image1.shape[1], image2.shape[1])
     height1 = int(image1.shape[0] * (width / image1.shape[1]))
     height2 = int(image2.shape[0] * (width / image2.shape[1]))
     resized_image1 = cv2.resize(image1, (width, height1))
     resized_image2 = cv2.resize(image2, (width, height2))
-
-    # Concatenate images vertically
     merged_image = np.vstack((resized_image1, resized_image2))
-
-    # Convert merged image to BGR before saving with OpenCV
     merged_image_bgr = cv2.cvtColor(merged_image, cv2.COLOR_RGB2BGR)
     cv2.imwrite("test.png", merged_image_bgr)
-
     return merged_image
+
+def process_in_separate_gpu(image, model_path, device, queue):
+    """
+    Load the model within the process and process the image.
+    """
+    # Load the model inside the process to avoid pickling issues
+    llm_model = VinternOCRModel(model_path, device=device)
+    result = llm_model.process_image(image)
+    queue.put(result)
 
 def check_and_process(image1, image2):
     """
-    Process each image individually, merge them, and then process the merged image with the LLM.
+    Process each image individually, merge them, and then process the merged image with the LLM in separate processes.
     """
     if image1 is not None and image2 is not None:
         start_time = time.time()
@@ -87,8 +85,31 @@ def check_and_process(image1, image2):
         # Merge the processed images
         merged_image = merge_images_vertically(processed_image1, processed_image2)
 
-        # Process the merged image with LLM
-        text_from_vision_model = llm_vison.process_image(merged_image)
+        # Create queues to capture results
+        queue1 = Queue()
+        queue2 = Queue()
+
+        # Paths to the model weights
+        model_path = "app_utils/weights/Vintern-4B-v1"
+
+        # Create separate processes for each model
+        process1 = Process(target=process_in_separate_gpu, args=(processed_image1, model_path, 'cuda:0', queue1))
+        process2 = Process(target=process_in_separate_gpu, args=(processed_image2, model_path, 'cuda:1', queue2))
+
+        # Start the processes
+        process1.start()
+        process2.start()
+
+        # Wait for the processes to finish
+        process1.join()
+        process2.join()
+
+        # Get the results from the queues
+        result1 = queue1.get()
+        result2 = queue2.get()
+
+        # Combine the results from both GPUs
+        text_from_vision_model = " ".join([result1, result2])
         total_time = time.time() - start_time
         processing_time_message = f"Processing Time: {total_time:.2f} seconds"
 
