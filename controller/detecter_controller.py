@@ -29,7 +29,7 @@ class Detector:
         """
         Initializes the Detector class with the necessary components for card detection, OCR, and QR code reading.
         """
-        self.card_detecter = ImageRectify()
+        self.card_detecter = ImageRectify(crop_expansion_factor = 0.0)
         self.qreader = QReader(
             model_size="l", min_confidence=0.7, reencode_to="cp65001"
         )

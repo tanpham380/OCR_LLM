@@ -50,14 +50,13 @@ async def scan(image_paths: List[str]) -> dict:
         # front_side_ocr, back_side_ocr = await asyncio.gather(
         #     ocr_controller.scan_image(front_result["image_path"], ["package_ocr"]),
         # )
-        ocr_text = await ocr_controller.scan_ocr([front_result["image_path"], back_result["image_path"]] )
+        ocr_text = await ocr_controller.scan_ocr_multi_images([front_result["image_path"], back_result["image_path"]] )
         combined_ocr_data = {
             "front_side_ocr": ocr_text,
             "front_side_qr": front_result["qr_code_text"],
             "back_side_qr": back_result["qr_code_text"],
             "back_side_ocr": ""
         }
-        print(combined_ocr_data)
         ocr_result_id = await db_manager.insert_ocr_result(combined_ocr_data)
 
         await asyncio.gather(
