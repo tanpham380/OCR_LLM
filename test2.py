@@ -3,18 +3,16 @@ import gradio as gr
 import time
 import torch
 import numpy as np
-from multiprocessing import Process, Queue, set_start_method
 from app_utils.image_rectifier_package.image_rectifier import ImageRectify
 from controller.llm_vison_future import VinternOCRModel
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import rotate_image
-
-# Set the multiprocessing start method to 'spawn' for CUDA compatibility
-if __name__ == "__main__":
-    set_start_method('spawn')
+import threading  # Import threading module
 
 idcard_detect = ImageRectify(crop_expansion_factor=0.02)
 orientation_engine = RapidOrientation()
+llm_model1 = VinternOCRModel("app_utils/weights/Vintern-3B-beta", device='cuda:0')
+llm_model2 = VinternOCRModel("app_utils/weights/Vintern-3B-beta", device='cuda:1')
 
 def process_image(image):
     """
@@ -46,79 +44,74 @@ def process_image(image):
     detected_image_rgb = cv2.cvtColor(detected_image_bgr, cv2.COLOR_BGR2RGB)
     return detected_image_rgb
 
-def merge_images_vertically(image1, image2):
-    """
-    Merge two images vertically with appropriate resizing.
-    """
-    if image1 is None or image2 is None:
-        return None
-    width = max(image1.shape[1], image2.shape[1])
-    height1 = int(image1.shape[0] * (width / image1.shape[1]))
-    height2 = int(image2.shape[0] * (width / image2.shape[1]))
-    resized_image1 = cv2.resize(image1, (width, height1))
-    resized_image2 = cv2.resize(image2, (width, height2))
-    merged_image = np.vstack((resized_image1, resized_image2))
-    merged_image_bgr = cv2.cvtColor(merged_image, cv2.COLOR_RGB2BGR)
-    cv2.imwrite("test.png", merged_image_bgr)
-    return merged_image
-
-def process_in_separate_gpu(image, model_path, device, queue):
-    """
-    Load the model within the process and process the image.
-    """
-    # Load the model inside the process to avoid pickling issues
-    llm_model = VinternOCRModel(model_path, device=device)
-    result = llm_model.process_image(image)
-    queue.put(result)
-
 def check_and_process(image1, image2):
     """
-    Process each image individually, merge them, and then process the merged image with the LLM in separate processes.
+    Processes the two input images simultaneously, merges them, and returns the 
+    merged image and the combined generated text.
     """
-    if image1 is not None and image2 is not None:
-        start_time = time.time()
+    if image1 is None or image2 is None:
+        return None, "Please upload two images.", None
 
-        # Process each image individually
-        processed_image1 = process_image(image1)
-        processed_image2 = process_image(image2)
+    start_time = time.time()
 
-        # Merge the processed images
-        merged_image = merge_images_vertically(processed_image1, processed_image2)
+    # Preprocess images
+    processed_image1 = process_image(image1)
+    processed_image2 = process_image(image2)
 
-        # Create queues to capture results
-        queue1 = Queue()
-        queue2 = Queue()
+    if processed_image1 is None or processed_image2 is None:
+        return None, "Image processing failed.", None
 
-        # Paths to the model weights
-        model_path = "app_utils/weights/Vintern-4B-v1"
+    # Initialize response variables
+    response1 = None
+    response2 = None
 
-        # Create separate processes for each model
-        process1 = Process(target=process_in_separate_gpu, args=(processed_image1, model_path, 'cuda:0', queue1))
-        process2 = Process(target=process_in_separate_gpu, args=(processed_image2, model_path, 'cuda:1', queue2))
+    # Define functions to process each image with the corresponding model
+    def process_response1():
+        nonlocal response1
+        response1 = llm_model1.process_image(image_file=processed_image1)
 
-        # Start the processes
-        process1.start()
-        process2.start()
+    def process_response2():
+        nonlocal response2
+        response2 = llm_model2.process_image(image_file=processed_image2)
 
-        # Wait for the processes to finish
-        process1.join()
-        process2.join()
+    # Create threads
+    thread1 = threading.Thread(target=process_response1)
+    thread2 = threading.Thread(target=process_response2)
 
-        # Get the results from the queues
-        result1 = queue1.get()
-        result2 = queue2.get()
+    # Start threads
+    thread1.start()
+    thread2.start()
 
-        # Combine the results from both GPUs
-        text_from_vision_model = " ".join([result1, result2])
-        total_time = time.time() - start_time
-        processing_time_message = f"Processing Time: {total_time:.2f} seconds"
+    # Wait for both threads to complete
+    thread1.join()
+    thread2.join()
 
-        # Return the merged image, generated text, and processing time
-        return merged_image, text_from_vision_model, processing_time_message
-    else:
-        return None, None, None
+    # Check if both responses were obtained
+    if response1 is None or response2 is None:
+        return None, "Image processing failed.", None
 
-# Create Gradio interface using Blocks
+    # Resize images to have the same height for concatenation
+    height1 = processed_image1.shape[0]
+    height2 = processed_image2.shape[0]
+    if height1 != height2:
+        # Adjust widths proportionally
+        if height1 > height2:
+            new_width = int(processed_image2.shape[1] * (height1 / height2))
+            processed_image2 = cv2.resize(processed_image2, (new_width, height1))
+        else:
+            new_width = int(processed_image1.shape[1] * (height2 / height1))
+            processed_image1 = cv2.resize(processed_image1, (new_width, height2))
+
+    # Concatenate images horizontally
+    merged_image = np.concatenate((processed_image1, processed_image2), axis=1)
+
+    end_time = time.time()
+    processing_time = end_time - start_time
+
+    time_message = f"Processing time: {processing_time:.2f} seconds"
+    return merged_image, response1 + "\n" + response2, time_message
+
+
 with gr.Blocks() as demo:
     gr.Markdown("# Vision-based Chat with LLM")
     gr.Markdown("Upload two images, which will be individually processed, merged, and then passed to the vision-based LLM to generate text and see the processing time.")

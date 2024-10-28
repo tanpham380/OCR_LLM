@@ -1,4 +1,5 @@
 import asyncio
+import time
 import cv2
 import numpy as np
 from typing import List, Dict, Any
@@ -88,7 +89,7 @@ logger = get_logger(__name__)
 class OcrController:
     def __init__(
         self,
-        model_path: str = "app_utils/weights/Vintern-3B-v1-phase4",
+        model_path: str = "app_utils/weights/Vintern-3B-beta",
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ) -> None:
         self.language_list = ["vi", "en"]
@@ -216,9 +217,24 @@ class OcrController:
                 torch.cuda.empty_cache()
 
             # --- Sử dụng process_images để xử lý nhiều ảnh ---
-            vision_model_result = await asyncio.to_thread(
-                self.vintern_ocr.process_images, cropped_images
+            all_results = []
+            total_processing_time = 0
+
+            for image in cropped_images:
+                start_time = time.time()
+                
+                vision_model_result = await asyncio.to_thread(
+                self.vintern_ocr.process_image, image
+                
             )
+                end_time = time.time()
+                processing_time = end_time - start_time
+                total_processing_time += processing_time 
+                print(vision_model_result)
+                print(f"Processing time for this image: {processing_time:.4f} seconds")
+                all_results.append(vision_model_result)
+                
+            print(f"Total processing time: {total_processing_time:.4f} seconds")
 
             if isinstance(vision_model_result, list):
                 vision_model_text = f"{str(vision_model_result)}\n\n"

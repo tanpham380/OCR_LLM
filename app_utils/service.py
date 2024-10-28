@@ -50,7 +50,7 @@ async def scan(image_paths: List[str]) -> dict:
         # front_side_ocr, back_side_ocr = await asyncio.gather(
         #     ocr_controller.scan_image(front_result["image_path"], ["package_ocr"]),
         # )
-        ocr_text = await ocr_controller.scan_ocr_multi_images([front_result["image_path"], back_result["image_path"]] )
+        ocr_text = await ocr_controller.scan_ocr([front_result["image_path"], back_result["image_path"]] )
         combined_ocr_data = {
             "front_side_ocr": ocr_text,
             "front_side_qr": front_result["qr_code_text"],
@@ -69,9 +69,7 @@ async def scan(image_paths: List[str]) -> dict:
 
         llm_controller.set_model('qwen2.5')
         llm_response = await llm_controller.send_message()
-        print(llm_response)
         message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
-        print(message_content)
         if not message_content.get('date_of_expiration'):
             day_of_birth = message_content.get('day_of_birth', '')
             if day_of_birth:

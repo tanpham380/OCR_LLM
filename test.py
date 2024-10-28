@@ -14,9 +14,12 @@ from PIL import Image
 from app_utils.ocr_package.schema import TextDetectionResult, PolygonBox
 # Initialize the LLM Vision model
 
+llm_vison = VinternOCRModel(
+    model_path="app_utils/weights/Vintern-3B-beta",
+    device=torch.device("cuda:0")  # Use specific GPU
+)
 
-
-llm_vison = VinternOCRModel("app_utils/weights/Vintern-3B-v1-phase4-ocr")
+# llm_vison = VinternOCRModel("app_utils/weights/Vintern-3B-beta")
 idcard_detect = ImageRectify(crop_expansion_factor=0.0)
 orientation_engine = RapidOrientation()
 det_processor = TextDect_withRapidocr(text_score = 0.6 , det_use_cuda = True)
