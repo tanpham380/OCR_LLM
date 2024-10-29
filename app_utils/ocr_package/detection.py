@@ -40,7 +40,7 @@ def batch_text_detection(images: np.ndarray, rapidocr_detector: TextDect_withRap
     adjusted_bboxes = []
     for bbox_coords in det_results:
         try:
-            adjusted_bbox_coords = adjust_bbox_height(bbox_coords, height_adjustment_factor=0.45)
+            adjusted_bbox_coords = adjust_bbox_height(bbox_coords, height_adjustment_factor=0.25)
             adjusted_bboxes.append(adjusted_bbox_coords)
         except ValueError:
             continue  # Skip invalid bbox

@@ -65,51 +65,6 @@ class Detector:
             raise e
             
 
-    # def read_QRcode(self, image: np.ndarray) -> str:
-    #     """
-    #     Reads and decodes the QR code from the provided image.
-
-    #     Args:
-    #         image (np.ndarray): Image array containing the QR code.
-
-    #     Returns:
-    #         str: Decoded QR code text.
-
-    #     Raises:
-    #         Exception: If QR code reading fails.
-    #     """
-    #     try:
-    #         if len(image.shape) == 2:
-    #             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    #         elif len(image.shape) == 3 and image.shape[2] == 4:
-    #             image = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
-    #         qr_detections = self.qreader.detect(image)
-
-    #         if not qr_detections:
-    #             raise Exception("No QR code detected in the image.")
-    #         text_qr = self.qreader.decode(image, qr_detections[0])
-
-    #         if text_qr is None:
-    #             cropped_qr = crop_image_qr(image, qr_detections[0])
-                
-    #             new_img = process_qr_image(cropped_qr)
-                
-    #             qr_detections = self.qreader.detect(new_img)
-    #             text_qr = self.qreader.decode(new_img, qr_detections[0])
-    #             # text_qr = self.qreader.detect_and_decode(new_img)
-    #             if text_qr is None or text_qr == (None,) or text_qr == ():
-    #                 gray_image = scale_up_img(new_img, 480)
-    #                 qr_detections = self.qreader.detect(gray_image)
-    #                 text_qr = self.qreader.decode(new_img, qr_detections[0])
-    #         if text_qr is None or text_qr == (None,) or text_qr == ():
-    #             text_qr = ""
-    #         return text_qr
-    #     except Exception as ex:
-    #         logger.info(ex)
-    #         return ""
-
-
-
     def read_QRcode(self, image: np.ndarray) -> str:
         """
         Reads and decodes the QR code from the provided image.

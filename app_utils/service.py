@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 detector_controller = Detector()
 llm_controller = LlmController()
 orientation_engine = RapidOrientation()
-ocr_controller = OcrController(model_path= "app_utils/weights/Vintern-3B-v1-phase4")
+ocr_controller = OcrController(model_path= "app_utils/weights/Vintern-3B-beta")
 
 async def scan(image_paths: List[str]) -> dict:
     try:
@@ -50,7 +50,7 @@ async def scan(image_paths: List[str]) -> dict:
         # front_side_ocr, back_side_ocr = await asyncio.gather(
         #     ocr_controller.scan_image(front_result["image_path"], ["package_ocr"]),
         # )
-        ocr_text = await ocr_controller.scan_ocr([front_result["image_path"], back_result["image_path"]] )
+        ocr_text = await ocr_controller.scan_ocr_dual([front_result["image_path"], back_result["image_path"]] )
         combined_ocr_data = {
             "front_side_ocr": ocr_text,
             "front_side_qr": front_result["qr_code_text"],
