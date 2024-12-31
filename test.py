@@ -1,3 +1,4 @@
+import json
 import cv2
 import gradio as gr
 import time
@@ -12,10 +13,12 @@ from typing import List
 import numpy as np
 from PIL import Image
 from app_utils.ocr_package.schema import TextDetectionResult, PolygonBox
+from controller.qwen_vison import EraXVLOcrModel
+from prompt import CCCD_FRONT_PROMPT
 # Initialize the LLM Vision model
 
-llm_vison = VinternOCRModel(
-    model_path="app_utils/weights/Vintern-3B-beta",
+llm_vison = EraXVLOcrModel(
+    # model_path="app_utils/weights/Vintern-3B-beta",
     device=torch.device("cuda:0")  # Use specific GPU
 )
 
@@ -77,48 +80,62 @@ def batch_text_detection(images: List[Image.Image]) -> List[TextDetectionResult]
         )
         results.append(result)
     return results
+def format_vision_output(text_from_vision_model: str) -> str:
+    """Format vision model output as pretty JSON"""
+    try:
+        # Parse JSON string
+        json_data = json.loads(text_from_vision_model)
+        
+        # Format with indentation for readability
+        formatted_json = json.dumps(json_data, indent=2, ensure_ascii=False)
+        return formatted_json
+    except json.JSONDecodeError:
+        # Return original text if not valid JSON
+        return text_from_vision_model
 
 def process_image(image):
-    start_time = time.time()  # Start timing
+    start_time = time.time()
+    
+    # Convert grayscale to RGB if needed
+    if len(image.shape) == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    
+    # Process image detection and orientation
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     detected_image, is_front = idcard_detect.detect(image_bgr)
-    # # Giải phóng bộ nhớ CUDA nếu sử dụng GPU
+    
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    # Xử lý hướng ảnh
-
+    
+    # Process orientation
     orientation_res, _ = orientation_engine(detected_image)
     orientation_res = float(orientation_res)
-
-    # Xoay ảnh nếu cần thiết
+    
     if orientation_res != 0:
         detected_image = rotate_image(detected_image, orientation_res)
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    # Cắt ảnh nếu không phải mặt trước
+    
+    # Crop if not front side
     if not is_front:
         height = detected_image.shape[0] // 2
         detected_image = detected_image[:height, :]
-        # Giải phóng bộ nhớ CUDA nếu sử dụng GPU
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
+    # Convert to RGB for vision model
+    image_rgb = cv2.cvtColor(detected_image, cv2.COLOR_BGR2RGB)
+    
+    # Process with vision model
+    text_from_vision_model = llm_vison.process_image(image_rgb ,CCCD_FRONT_PROMPT )
+    formatted_text = format_vision_output(text_from_vision_model)
 
-    text_from_vision_model = llm_vison.process_image(image_gray)
-
-    # Chuyển đổi ảnh sang RGB trước khi hiển thị trên Gradio
-    detected_image_rgb = cv2.cvtColor(image_gray, cv2.COLOR_BGR2RGB)
-
-    # Tính toán thời gian xử lý
+    # Convert back for display
+    detected_image_rgb = cv2.cvtColor(detected_image, cv2.COLOR_BGR2RGB)
+    
     total_time = time.time() - start_time
     processing_time_message = f"Thời gian xử lý: {total_time:.2f} giây"
-
-    # Giải phóng bộ nhớ CUDA nếu sử dụng GPU
+    
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-
-    return detected_image_rgb, text_from_vision_model, processing_time_message
+    
+    return detected_image_rgb, formatted_text, processing_time_message
 
 # Tạo giao diện Gradio
 demo = gr.Interface(
