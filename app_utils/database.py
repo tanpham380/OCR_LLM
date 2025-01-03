@@ -1,9 +1,7 @@
-import base64
 import aiosqlite
 from quart import g, current_app
 import logging
 import json
-import asyncio
 
 class SQLiteManager:
     def __init__(self, db_path: str):

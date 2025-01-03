@@ -3,7 +3,6 @@ from quart import Quart, g
 from app_utils.database import SQLiteManager
 from app_utils.logging import get_logger
 from app_utils.routes import blueprint  # Adjust the import path as necessary
-import asyncio
 import os
 
 from config import (
@@ -45,9 +44,11 @@ def create_app():
     async def before_serving():
         await db_manager.optimize_sqlite()
         await db_manager.create_table()
+        
     @app.before_request
     async def before_request():
         g.db_manager = db_manager
+        
     @app.teardown_appcontext
     async def close_db(error):
         await db_manager.close_connection(error)

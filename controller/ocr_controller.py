@@ -7,7 +7,7 @@ import torch
 from app_utils.file_handler import load_and_preprocess_image
 from app_utils.logging import get_logger
 from controller.vllm_qwen import VLLM_Exes
-from prompt import CCCD_FRONT_PROMPT , CCCD_BACK_PROMPT
+from app_utils.prompt import CCCD_FRONT_PROMPT , CCCD_BACK_PROMPT
 # from controller.llm_vison_future import VinternOCRModel
 
 logger = get_logger(__name__)

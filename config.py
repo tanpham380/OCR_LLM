@@ -15,7 +15,7 @@ load_dotenv(find_dotenv())
 
 # --------------------------------
 
-CONF_CONTENT_THRESHOLD = 0.7
+CONF_CONTENT_THRESHOLD = 0.75
 IOU_CONTENT_THRESHOLD = 0.7
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
@@ -38,29 +38,11 @@ URL_API_LLM = os.getenv("URL_API_LLM")
 # --------
 WEIGHTS = os.path.join(UTILS_PATH, "weights")
 
-# FACE_MODEL_PATH = os.path.join(WEIGHTS, "face.pt")
-
-# CORNER_MODEL_PATH = os.path.join(WEIGHTS, "corner.pt")
-VIETOCR_MODEL_PATH = os.path.join(WEIGHTS, "/home/gitlab/ocr/app_utils/weights/seq2seqocr.pth")
 CORNER_MODEL_PATH = os.path.join(WEIGHTS, "ID_Card.pt")
-CORNER_MODEL_PATH2 = os.path.join(WEIGHTS, "Angle_Deg.pt")
 
-# CORNER_MODEL_PATH2 = os.path.join(WEIGHTS, "CavetDetector_v1.pt")
-
-# CONTENT_MODEL_PATH2 = os.path.join(WEIGHTS, "CCCDFieldsDetector_v1.pt")
-# /Users/sentinel/Desktop/testdev/OCR_WITH_LLM/utils/Vocr
-# CONFIG_VIETOCR_LOCAL = os.path.join(UTILS_PATH, "Vocr", "config", "vgg-seq2seq.yml")
 DEVICE = select_device()
-# CONFIG_VIETOCR_MODEL = os.path.join(WEIGHTS, "seq2seqocr.pth")
-# MODEL_IMAGE_RECTIFIER= os.path.join(WEIGHTS, "CRDN1000.pkl")
 
 ####
 os.environ["RECOGNITION_BATCH_SIZE"] = "512"
 os.environ["DETECTOR_BATCH_SIZE"] = "36"
 os.environ["ORDER_BATCH_SIZE"] = "32"
-# os.environ["RECOGNITION_STATIC_CACHE"] = "true"
-# os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
-
-##
-# torch._dynamo.config.capture_scalar_outputs = True
-# torch._dynamo.config.suppress_errors = True
