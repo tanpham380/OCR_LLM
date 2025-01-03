@@ -38,7 +38,7 @@ URL_API_LLM = os.getenv("URL_API_LLM")
 # --------
 WEIGHTS = os.path.join(UTILS_PATH, "weights")
 
-CORNER_MODEL_PATH = os.path.join(WEIGHTS, "ID_Card.pt")
+CORNER_MODEL_PATH = os.path.join(WEIGHTS, "idcard.pt")
 
 DEVICE = select_device()
 

@@ -293,16 +293,22 @@ def scale_up_img(img: np.ndarray, target_size: int = 1048) -> np.ndarray:
     return cv2.cvtColor(np.array(img_resized), cv2.COLOR_RGB2BGR)
 
 
-def convert_image(image_data: np.ndarray) -> bytes:
-    """Converts an np.ndarray image to bytes in PNG format."""
+def convert_image(image_path):
     try:
-        img_pil = Image.fromarray(cv2.cvtColor(image_data, cv2.COLOR_BGR2RGB))
-        with io.BytesIO() as output:
-            img_pil.save(output, format='PNG')
-            return output.getvalue()
+        # Convert PIL Image to bytes
+        if isinstance(image_path, Image.Image):
+            img_byte_arr = io.BytesIO()
+            image_path.save(img_byte_arr, format='PNG')
+            return img_byte_arr.getvalue()
+            
+        # Handle filepath string
+        pil_image = Image.open(image_path)
+        img_byte_arr = io.BytesIO()
+        pil_image.save(img_byte_arr, format='PNG')
+        return img_byte_arr.getvalue()
+        
     except Exception as e:
-        raise Exception(f"Error converting image: {e}")
-
+        raise Exception(f"Error converting image: {str(e)}")
 
 
 def crop_text_regions(image: np.ndarray, detection_boxes: list) -> list:

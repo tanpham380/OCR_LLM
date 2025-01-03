@@ -189,13 +189,13 @@ Return JSON with these fields:
 
     async def send_custom_message(
         self,
-        custom_prompt: Optional[str] = None,
+        custom_system_prompt: Optional[str] = None,
         custom_context: Optional[str] = None,
         custom_image: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Send a message with custom prompt and/or context."""
         return await self._send_message(
-            custom_prompt or self.system_prompt,
+            custom_system_prompt or self.system_prompt,
             custom_context or self.user_context,
             custom_image
         )
