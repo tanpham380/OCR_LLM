@@ -20,11 +20,10 @@ from controller.ocr_controller import OcrController
 
 logger = get_logger(__name__)
 
-# Initialize controllers
 detector_controller = Detector()
 llm_controller = LlmController()
 orientation_engine = RapidOrientation()
-ocr_controller = OcrController(model_path= "app_utils/weights/Vintern-3B-beta")
+ocr_controller = OcrController()
 
 async def scan(image_paths: List[str]) -> dict:
     try:

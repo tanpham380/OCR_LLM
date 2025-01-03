@@ -37,10 +37,10 @@ class VLLM_Exes:
         model_name: str = "erax-ai/EraX-VL-2B-V1.5",
         tensor_parallel_size: Optional[int] = None,
         sampling_params: Optional[Dict[str, Any]] = None,
-        gpu_memory_utilization: float = 0.85,
+        gpu_memory_utilization: float = 0.95,
         max_seq_len: int = 2048,
-        quantization: Optional[str] = "awq",
-        dtype: str = "float16",
+        # quantization: Optional[str] = "awq",
+        # dtype: str = "float16",
         swap_space: int = 4,
         max_num_seqs: int = 5,
         **kwargs
@@ -64,8 +64,8 @@ class VLLM_Exes:
             gpu_memory_utilization=gpu_memory_utilization,
             max_seq_len_to_capture=max_seq_len,
             trust_remote_code=True,
-            dtype=dtype,
-            quantization=quantization,
+            # dtype=dtype,
+            # quantization=quantization,
             enforce_eager=self.tensor_parallel_size == 1,
             swap_space=swap_space,
             disable_custom_all_reduce=self.tensor_parallel_size == 1,
@@ -77,7 +77,7 @@ class VLLM_Exes:
         self,
         prompt: Union[str, Dict],
         image_files: Optional[List[str]] = None,
-        system_prompt: str = "You are a helpful assistant.",
+        system_prompt: str = "Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (OCR) từ hình ảnh. Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json như yêu cầu của người dùng và không được bịa đặt gì thêm.",
         custom_sampling_params: Optional[Dict[str, Any]] = None
     ) -> str:
         """Generate response for text or image+text input.

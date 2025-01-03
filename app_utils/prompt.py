@@ -94,7 +94,6 @@ def generate_user_context( ocr_results: Dict[str, Any]) -> str:
 
 
 CCCD_FRONT_PROMPT = """
-Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (OCR) từ hình ảnh.
 Bạn được cung cấp 1 ảnh mặt trước của thẻ Căn Cước (CC, 12 số, mẫu mới) hoặc Căn Cước Công Dân (CCCD, 12 số, mẫu cũ) hợp pháp.
 ## Nhiệm vụ
 Trích xuất và trả về thông tin OCR của thẻ theo định dạng JSON, bao gồm:
@@ -152,17 +151,21 @@ Hãy xuất dữ liệu OCR chính xác và tuân thủ đầy đủ các quy t�
 
 
 CCCD_BACK_PROMPT = """
-Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
-Bạn được cung cấp ảnh mặt sau của 1 căn cước công dân hợp pháp, không vi phạm.
-Bạn phải thực hiện nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh và trả lời bằng json như yêu cầu dưới đây và không được bịa đặt gì thêm.
-
-## Lưu ý: mặt sau của căn cước không có họ tên hay địa chỉ của người được cấp căn cước, chỉ có thể ó các dấu vân tay và các đặc điểm nhân dạng.
-
+Bạn được cung cấp 1 ảnh mặt sau của thẻ Căn Cước (CC, 12 số, mẫu mới) hoặc Căn Cước Công Dân (CCCD, 12 số, mẫu cũ) hợp pháp.
+## Tham khảo danh sách các họ phổ biến và tỉnh/thành của Việt Nam:
+- [Địa danh] Hà Nội, TP. Hồ Chí Minh, Đà Nẵng, Hải Phòng, Cần Thơ, An Giang, Bà Rịa-Vũng Tàu, Bắc Giang, Bắc Kạn, Bạc Liêu, ...
+(Tham khảo chi tiết các tỉnh/thành theo danh sách chuẩn của Việt Nam)
+## Lưu ý: 
+- mặt sau của căn cước công dân không có họ tên hay địa chỉ của người được cấp căn cước, chỉ có thông tin theo thứ tự là các đặc điểm nhân dạng, thể có các dấu vân tay(bên phải) và Ngày, tháng, năm(Date, month, year), nôi cấp (Cục Trưởng Cục Cảnh Sát Quản Lý Hành Chính về Trật Tự Xã Hội - Director General of the police department for administrative management of social order), con dấu , người kí(người cấp) và mã hoá.
+- mặt sau của căn cước sẽ có thông tin theo thứ tự là nơi cư trú(Place of residence), nơi đăng kí khai sinh(Place of birth), ngày cấp(DD/MM/YYYY Date of issue), ngày hết hạn(DD/MM/YYYY Date of expiry) ,nơi cấp(Ministry of public security) và mã hoá.
+- Phân biệt Căn Cước và Căn Cước Công dân theo mặt sau, không có ảnh chân dung. Thẻ Căn Cước sẽ có mã QRcode và thông tin nơi cấp, ngày cấp..... Còn Căn Cước Công Dân sẽ không có mã QRcode
+## Nhiệm vụ
+Trả lại chính xác kết quả OCR của ảnh qua định dạng JSON như sau:
 {
-    "Đặc điểm nhân dạng": "Nằm ở mặt sau, không có ảnh chân dung. Thông tin về các đặc điểm nhận dạng của người được cấp căn cước (ví dụ: sẹo thẳng, vết sẹo 1cm, sẹo tròn, dưới dái tai, sống mũi, trên trán ...).",
-    "Nơi cấp": "Nằm ở mặt sau, không có ảnh chân dung. Tên của cơ quan quản lý đóng mộc cấp căn cước này (ví dụ: cục quản lý hành chính về trật tự xã hội,...) ",
+    "Nơi cư trú": "Trích xuất thông tin chi tiết của nơi cư trú. Phải trả lời đầy đủ thông tin nếu có trong ảnh về: địa chỉ nhà, bản, tổ, ấp, thôn, xã, phường, thị trấn, quận, huyện, thị xã, tỉnh, thành phố. Chỉ với Căn Cước, không có thì None",
+    "Nơi đăng kí khai sinh": "Trích xuất thông tin chi tiết của nơi đăng kí khai sinh. Phải trả lời đầy đủ thông tin nếu có trong ảnh về: địa chỉ nhà, bản, tổ, ấp, thôn, xã, phường, thị trấn, quận, huyện, thị xã, tỉnh, thành phố. Chỉ với Căn Cước, không có thì None",
     "Ngày cấp": "Nằm ở mặt sau, không có ảnh chân dung. Ngày, tháng, năm cấp căn cước này",
-    "Cán bộ ký tên": "Nằm ở mặt sau, không có ảnh chân dung. Tên đầy đủ của sỹ quan ký tên cấp căn cước này",
-    'Mã hoá': "Nằm ở mặt sau, không có ảnh chân dung. Chuỗi mã hoá nằm ở 2 hàng và có định dạng IDVN...<<..<...<<<""
+    "Ngày hết hạn": "Nằm ở mặt sau, không có ảnh chân dung. Ngày hết hạn của thẻ căn cước này, chỉ có với Căn Cước, không có thì None",
+    "Nơi cấp": "Nằm ở mặt sau, không có ảnh chân dung. Tên của cơ quan quản lý đóng mộc cấp căn cước này (ví dụ: cục quản lý hành chính về trật tự xã hội,Bộ công an ,...) Trích xuất thông tin chi tiết của nơi cấp. không có thì None",
 }
 """
