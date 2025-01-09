@@ -31,6 +31,8 @@ SAVE_IMAGES = os.path.join(SAVE_DIR, "images")
 UTILS_PATH = os.path.join(BASE_PATH, "app_utils")
 DB_PATH = os.path.join(UTILS_PATH ,"database" , "db.sqlite3")
 TEMP_DIR = tempfile.gettempdir()
+os.environ["CUDA_VISIBLE_DEVICES"] = "3" #os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+
 
 API_KEY = os.getenv("API_KEY")
 URL_API_LLM = os.getenv("URL_API_LLM")
@@ -39,7 +41,7 @@ URL_API_LLM = os.getenv("URL_API_LLM")
 WEIGHTS = os.path.join(UTILS_PATH, "weights")
 
 CORNER_MODEL_PATH = os.path.join(WEIGHTS, "idcard.pt")
-
+ORIENTATION_MODEL_PATH = os.path.join(WEIGHTS, "rapid_orientation.onnx")
 DEVICE = select_device()
 
 ####

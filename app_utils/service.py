@@ -1,30 +1,27 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import re
 import time
 import torch
-import numpy as np
 from typing import List
-from quart import current_app, g, url_for
-from app_utils.file_handler import save_image, scale_up_img
+from quart import g, url_for
+from app_utils.file_handler import crop_back_side, load_image, save_image, scale_up_img
 from app_utils.logging import get_logger
-from app_utils.prompt import generate_user_context
+from app_utils.prompt import CCCD_FRONT_PROMPT , CCCD_BACK_PROMPT
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
-from app_utils.util import calculate_expiration_date, calculate_sex_from_id, rotate_image
-from config import SAVE_IMAGES, TEMP_DIR
+from app_utils.util import rotate_image
+from config import ORIENTATION_MODEL_PATH, SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
+from controller.vllm_qwen import VLLM_Exes
 from controller.llm_controller import LlmController
-from controller.ocr_controller import OcrController
 
 logger = get_logger(__name__)
 
 detector_controller = Detector()
 llm_controller = LlmController()
-orientation_engine = RapidOrientation()
-ocr_controller = OcrController()
-
+orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
+ocr_controller = VLLM_Exes() 
 async def scan(image_paths: List[str]) -> dict:
     try:
         start_time = time.perf_counter()
@@ -44,45 +41,18 @@ async def scan(image_paths: List[str]) -> dict:
 
         if not front_result or not back_result:
             raise ValueError("Could not determine front and back images.")
+        
+        if back_result:
+            back_img = load_image(back_result["image_path"])
+            cropped_back = crop_back_side(back_img)
+       
+        ocr_text = ocr_controller.generate_multi([front_result["image_path"], cropped_back])
 
-        # # Chạy các hàm bất đồng bộ scan_image đồng thời và đợi kết quả
-        # front_side_ocr, back_side_ocr = await asyncio.gather(
-        #     ocr_controller.scan_image(front_result["image_path"], ["package_ocr"]),
-        # )
-        ocr_text = await ocr_controller.scan_ocr_dual([front_result["image_path"], back_result["image_path"]] )
-        combined_ocr_data = {
-            "front_side_ocr": ocr_text,
-            "front_side_qr": front_result["qr_code_text"],
-            "back_side_qr": back_result["qr_code_text"],
-            "back_side_ocr": ""
-        }
-        ocr_result_id = await db_manager.insert_ocr_result(combined_ocr_data)
 
-        await asyncio.gather(
-            db_manager.insert_image(ocr_result_id, 'front', front_result["image_path"]),
-            db_manager.insert_image(ocr_result_id, 'back', back_result["image_path"])
-        )
-
-        context = await asyncio.to_thread(llm_controller.set_user_context, combined_ocr_data)
-        await db_manager.insert_user_context(ocr_result_id, context)
-
-        llm_controller.set_model('qwen2.5')
-        llm_response = await llm_controller.send_message()
-        message_content = clean_message_content(llm_response.get('message', {}).get('content', ''))
-        if not message_content.get('date_of_expiration'):
-            day_of_birth = message_content.get('day_of_birth', '')
-            if day_of_birth:
-                expiration_date = calculate_expiration_date(day_of_birth)
-                message_content['date_of_expiration'] = expiration_date
-        if not message_content.get('nationality'):
-            message_content['nationality'] = "Việt Nam"
-        if not message_content.get('sex'):
-            id_number = message_content.get('id_number', '')
-            message_content['sex'] = calculate_sex_from_id(id_number)
 
         processing_time = time.perf_counter() - start_time
         llm_response_with_time = {
-            "llm_response": message_content,
+            "llm_response": ocr_text,
             "processing_time_seconds": processing_time,
             "mat_truoc": url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
             "mat_sau": url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
@@ -111,11 +81,11 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
             image = rotate_image(image, orientation_res)
         image = scale_up_img(image, 480)
         image_path = save_image(image, SAVE_IMAGES, print_path =False)
-        qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
-        qr_code_text = await asyncio.gather(qr_code_text_task)
+        # qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
+        # qr_code_text = await asyncio.gather(qr_code_text_task)
 
         return {
-            "qr_code_text": qr_code_text or " ",
+            # "qr_code_text": qr_code_text or " ",
             "mat_truoc": mat_truoc,
             "image_path": image_path
         }

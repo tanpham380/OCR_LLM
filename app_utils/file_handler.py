@@ -126,6 +126,22 @@ def save_image(image: Union[str, np.ndarray, Image.Image], save_dir: str = TEMP_
         logger.error(f"Failed to save image: {str(e)}")
         raise Exception(f"Failed to save image: {str(e)}")
 
+def crop_back_side(image: np.ndarray, ratio: float = 2/3) -> np.ndarray:
+    """
+    Crops the upper portion of the back side image based on ratio.
+    
+    Args:
+        image (np.ndarray): Input image as numpy array
+        ratio (float): Portion of image to keep (e.g. 2/3 keeps top 66.7%)
+        
+    Returns:
+        np.ndarray: Cropped image containing upper portion
+    """
+    height = image.shape[0]
+    crop_height = int(height * ratio)
+    # Get upper portion based on ratio
+    cropped = image[0:crop_height, :]
+    return cropped
 
 def load_image(image_input: Any) -> np.ndarray:
     """
@@ -207,6 +223,7 @@ def load_image(image_input: Any) -> np.ndarray:
             return img
         except Exception as e:
             raise Exception(f"Failed to load and fix image: {str(e)}")
+        
 
 def preprocess_image(img: np.ndarray) -> np.ndarray:
     """
