@@ -1,20 +1,13 @@
 import os
 from app_utils.prompt import CCCD_BACK_PROMPT, CCCD_FRONT_PROMPT
-from controller.llm_controller import LlmController
 import gradio as gr
-import cv2
-import numpy as np
-from PIL import Image
-
 from controller.vllm_qwen import VLLM_Exes
 
 
 # Initialize LLM controller
 vison_model = VLLM_Exes()
 
-DEAFULT_SYSTEM_PROMPT = """
-Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (OCR) từ hình ảnh. Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json như yêu cầu của người dùng và không được bịa đặt gì thêm.
-"""
+
 examples = [
     # Front ID examples
     [None, CCCD_FRONT_PROMPT],
@@ -29,18 +22,12 @@ async def process_image_async(image_path, question):
         if not os.path.exists(image_path):
             raise ValueError("Image file not found")
             
-        custom_params = {
-            "temperature": 0.01,
-            "max_tokens": 2048,  # Increased token limit
-            "presence_penalty": 0,
-            "frequency_penalty": 0
-        }
+
             
-        response = await vison_model.generate(
+        response =  vison_model.generate(
             prompt=question, 
             image_file=image_path,
-            system_prompt=DEAFULT_SYSTEM_PROMPT,
-            custom_sampling_params=custom_params
+            # system_prompt=DEAFULT_SYSTEM_PROMPT,
         )
         
         if not response:

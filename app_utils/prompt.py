@@ -2,6 +2,8 @@
 
 
 CCCD_FRONT_PROMPT = """
+Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (OCR) từ hình ảnh. Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json như yêu cầu của người dùng và không được bịa đặt gì thêm.
+
 Bạn được cung cấp 1 ảnh mặt trước của thẻ Căn Cước (CC, 12 số, mẫu mới) hoặc Căn Cước Công Dân (CCCD, 12 số, mẫu cũ) hợp pháp.
 ## Nhiệm vụ
 Trích xuất và trả về thông tin OCR của thẻ theo định dạng JSON, bao gồm:
@@ -59,6 +61,7 @@ Hãy xuất dữ liệu OCR chính xác và tuân thủ đầy đủ các quy t�
 
 
 CCCD_BACK_PROMPT = """
+Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (OCR) từ hình ảnh. Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json như yêu cầu của người dùng và không được bịa đặt gì thêm.
 Bạn được cung cấp 1 ảnh mặt sau của thẻ Căn Cước (CC, 12 số, mẫu mới) hoặc Căn Cước Công Dân (CCCD, 12 số, mẫu cũ) hợp pháp.
 ## Tham khảo danh sách các họ phổ biến và tỉnh/thành của Việt Nam:
 - [Địa danh] Hà Nội, TP. Hồ Chí Minh, Đà Nẵng, Hải Phòng, Cần Thơ, An Giang, Bà Rịa-Vũng Tàu, Bắc Giang, Bắc Kạn, Bạc Liêu, ...
