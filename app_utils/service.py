@@ -93,22 +93,4 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
         logger.error(f"Error processing image: {e}")
         raise e
 
-def clean_message_content(message_content: str) -> dict:
-    try:
-        # First try to extract valid JSON from within backticks
-        match = re.search(r'```json\s*(\{.*?\})\s*```', message_content, re.DOTALL)
-        if match:
-            json_content = match.group(1)
-        else:
-            match = re.search(r'(\{.*?\})', message_content, re.DOTALL)
-            json_content = match.group(1) if match else "{}" 
-
-
-        # Fix common issues like using single quotes
-        json_content = json_content.replace("'", '"')
-
-        return json.loads(json_content)
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing JSON content: {e}")
-        raise e
 
