@@ -26,7 +26,7 @@ class VLLM_Exes:
         self.processor = AutoProcessor.from_pretrained(
             model_path,
             min_pixels=256 * 28 * 28,
-            max_pixels=1280 * 28 * 28,
+            max_pixels=720 * 28 * 28,
         )
         
         # Default generation config
