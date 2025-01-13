@@ -1,3 +1,4 @@
+import hashlib
 import io
 import base64
 import cv2
@@ -84,40 +85,66 @@ class Llm_Vision_Exes:
         self.api_key = api_key
         self.api_base = api_base
         self.client = OpenapiExes(api_key=api_key, api_base=api_base)
+    @staticmethod
+    def _hash_array(arr: np.ndarray) -> str:
+        """Create hash for numpy array to use as cache key"""
+        return hashlib.md5(arr.tobytes()).hexdigest()
+
+    @staticmethod
+    def _cache_key(image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]) -> str:
+        """Generate cache key for different image types"""
+        if isinstance(image_file, str):
+            return image_file
+        elif isinstance(image_file, np.ndarray):
+            return Llm_Vision_Exes._hash_array(image_file)
+        elif isinstance(image_file, torch.Tensor):
+            return Llm_Vision_Exes._hash_array(image_file.cpu().numpy())
+        elif isinstance(image_file, Image.Image):
+            return str(hash(image_file.tobytes()))
+        return str(hash(image_file))
 
     @staticmethod
     @lru_cache(maxsize=100)
+    def _prepare_image_input_cached(cache_key: str, image_bytes: bytes) -> str:
+        """Cached version of image preparation"""
+        base64_str = base64.b64encode(image_bytes).decode("utf-8")
+        return f"data:image/jpeg;base64,{base64_str}"
+
     def _prepare_image_input(
+        self,
         image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]
     ) -> str:
-        """Convert image to base64 with caching for better performance"""
         try:
             if isinstance(image_file, str) and image_file.startswith("data:"):
                 return image_file
 
-            def get_image_bytes() -> bytes:
-                if isinstance(image_file, str):
-                    if image_file.startswith(("http://", "https://")):
-                        import requests
-
-                        response = requests.get(image_file, timeout=30)
-                        response.raise_for_status()
-                        return response.content
-                    return open(image_file, "rb").read()
-                elif isinstance(image_file, np.ndarray):
-                    return cv2.imencode(".jpg", image_file)[1].tobytes()
-                elif isinstance(image_file, torch.Tensor):
-                    arr = image_file.cpu().numpy().astype(np.uint8)
-                    return cv2.imencode(".jpg", arr)[1].tobytes()
-                elif isinstance(image_file, Image.Image):
-                    buffer = io.BytesIO()
-                    image_file.save(buffer, format="JPEG")
-                    return buffer.getvalue()
+            # Get bytes and cache key
+            if isinstance(image_file, str):
+                if image_file.startswith(("http://", "https://")):
+                    import requests
+                    response = requests.get(image_file, timeout=30)
+                    response.raise_for_status()
+                    image_bytes = response.content
+                else:
+                    with open(image_file, "rb") as f:
+                        image_bytes = f.read()
+                cache_key = image_file
+            elif isinstance(image_file, np.ndarray):
+                image_bytes = cv2.imencode(".jpg", image_file)[1].tobytes()
+                cache_key = self._hash_array(image_file)
+            elif isinstance(image_file, torch.Tensor):
+                arr = image_file.cpu().numpy().astype(np.uint8)
+                image_bytes = cv2.imencode(".jpg", arr)[1].tobytes()
+                cache_key = self._hash_array(arr)
+            elif isinstance(image_file, Image.Image):
+                buffer = io.BytesIO()
+                image_file.save(buffer, format="JPEG")
+                image_bytes = buffer.getvalue()
+                cache_key = str(hash(image_bytes))
+            else:
                 raise ValueError(f"Unsupported image type: {type(image_file)}")
 
-            image_bytes = get_image_bytes()
-            base64_str = base64.b64encode(image_bytes).decode("utf-8")
-            return base64_str
+            return self._prepare_image_input_cached(cache_key, image_bytes)
 
         except Exception as e:
             raise ValueError(f"Failed to prepare image: {str(e)}")
