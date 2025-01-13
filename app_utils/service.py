@@ -1,20 +1,16 @@
 import asyncio
-import json
 import os
-import re
-import time
 import torch
 from typing import List
 from quart import g, url_for
 from app_utils.file_handler import crop_back_side, load_image, save_image, scale_up_img
 from app_utils.logging import get_logger
-from app_utils.prompt import CCCD_FRONT_PROMPT , CCCD_BACK_PROMPT
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import rotate_image
 from config import ORIENTATION_MODEL_PATH, SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
 from controller.openapi_vison import Llm_Vision_Exes
-from controller.vllm_qwen_old import VLLM_Exes
+# from controller.vllm_qwen_old import VLLM_Exes
 from controller.llm_controller import LlmController
 
 logger = get_logger(__name__)
@@ -28,7 +24,6 @@ ocr_controller = Llm_Vision_Exes( "" , "http://127.0.0.1:2242")
 
 async def scan(image_paths: List[str]) -> dict:
     try:
-        start_time = time.perf_counter()
         db_manager = g.db_manager
         if not db_manager:
             raise RuntimeError("Database manager not initialized.")
@@ -54,10 +49,8 @@ async def scan(image_paths: List[str]) -> dict:
 
 
 
-        processing_time = time.perf_counter() - start_time
         llm_response_with_time = {
             "llm_response": ocr_text,
-            "processing_time_seconds": processing_time,
             "mat_truoc": url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
             "mat_sau": url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
         }

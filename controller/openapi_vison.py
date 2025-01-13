@@ -79,7 +79,58 @@ class OpenapiExes:
         except Exception as e:
             raise ValueError(f"Analysis failed: {str(e)}")
 
+    def analyze_images(
+        self,
+        images_base64: List[Union[str]],
+        prompt: str 
+    ) -> Dict:
+        try:
+            if not isinstance(image_files, list):
+                image_files = [image_files]
 
+            start_time = time.time()
+
+            # Process all images in parallel using list comprehension
+            image_contents = [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{img}"
+                    },
+                }
+                for img in images_base64
+            ]
+
+            response = self.client.chat.completions.create(
+                model="erax-ai/EraX-VL-7B-V1.5",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": prompt}, *image_contents],
+                    }
+                ],
+                extra_body=vars(self.config),
+            )
+            end_time = time.time()
+
+            return {
+                "content": response.choices[0].message.content,
+                "metadata": {
+                    "model": response.model,
+                    "created": response.created,
+                    "response_time": f"{end_time - start_time:.2f}",
+                    "tokens": {
+                        "total": response.usage.total_tokens,
+                        "prompt": response.usage.prompt_tokens,
+                        "completion": response.usage.completion_tokens,
+                    },
+                },
+            }
+        except Exception as e:
+            raise ValueError(f"Multi-image generation failed: {str(e)}")
+        
+        
+        
 class Llm_Vision_Exes:
     def __init__(self, api_key: str, api_base: str):
         self.api_key = api_key
@@ -202,10 +253,6 @@ class Llm_Vision_Exes:
         try:
             if not isinstance(image_files, list):
                 image_files = [image_files]
-
-            start_time = time.time()
-
-            # Process all images in parallel using list comprehension
             image_contents = [
                 {
                     "type": "image_url",
@@ -215,31 +262,6 @@ class Llm_Vision_Exes:
                 }
                 for img in image_files
             ]
-
-            response = self.client.chat.completions.create(
-                model="erax-ai/EraX-VL-7B-V1.5",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [{"type": "text", "text": prompt}, *image_contents],
-                    }
-                ],
-                extra_body=vars(self.client.config),
-            )
-            end_time = time.time()
-
-            return {
-                "content": response.choices[0].message.content,
-                "metadata": {
-                    "model": response.model,
-                    "created": response.created,
-                    "response_time": f"{end_time - start_time:.2f}",
-                    "tokens": {
-                        "total": response.usage.total_tokens,
-                        "prompt": response.usage.prompt_tokens,
-                        "completion": response.usage.completion_tokens,
-                    },
-                },
-            }
+            return self.client.analyze_images(image_contents, prompt)
         except Exception as e:
             raise ValueError(f"Multi-image generation failed: {str(e)}")
