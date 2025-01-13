@@ -13,7 +13,7 @@ from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientati
 from app_utils.util import rotate_image
 from config import ORIENTATION_MODEL_PATH, SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
-from controller.vllm_qwen import VLLM_Exes
+from controller.vllm_qwen_old import VLLM_Exes
 from controller.llm_controller import LlmController
 
 logger = get_logger(__name__)
