@@ -11,9 +11,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from dataclasses import dataclass
 from functools import lru_cache
 
+
 @dataclass
 class ModelConfig:
     """Default model configuration"""
+
     temperature: float = 0.01
     top_p: float = 0.1
     min_p: float = 0.1
@@ -22,6 +24,7 @@ class ModelConfig:
     repetition_penalty: float = 1.1
     best_of: int = 5
     use_beam_search: bool = False
+
 
 class OpenapiExes:
     def __init__(self, api_key: str, api_base: str):
@@ -33,26 +36,32 @@ class OpenapiExes:
         )
         self.config = ModelConfig()
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
     def analyze_image(self, image_base64: str, prompt: str) -> Dict:
         try:
             start_time = time.time()
             response = self.client.chat.completions.create(
                 model="erax-ai/EraX-VL-7B-V1.5",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
-                        }
-                    ]
-                }],
-                extra_body=vars(self.config)
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_base64}"
+                                },
+                            },
+                        ],
+                    }
+                ],
+                extra_body=vars(self.config),
             )
             end_time = time.time()
-            
+
             return {
                 "content": response.choices[0].message.content,
                 "metadata": {
@@ -62,12 +71,13 @@ class OpenapiExes:
                     "tokens": {
                         "total": response.usage.total_tokens,
                         "prompt": response.usage.prompt_tokens,
-                        "completion": response.usage.completion_tokens
-                    }
-                }
+                        "completion": response.usage.completion_tokens,
+                    },
+                },
             }
         except Exception as e:
             raise ValueError(f"Analysis failed: {str(e)}")
+
 
 class Llm_Vision_Exes:
     def __init__(self, api_key: str, api_base: str):
@@ -77,7 +87,9 @@ class Llm_Vision_Exes:
 
     @staticmethod
     @lru_cache(maxsize=100)
-    def _prepare_image_input(image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]) -> str:
+    def _prepare_image_input(
+        image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]
+    ) -> str:
         """Convert image to base64 with caching for better performance"""
         try:
             if isinstance(image_file, str) and image_file.startswith("data:"):
@@ -87,61 +99,105 @@ class Llm_Vision_Exes:
                 if isinstance(image_file, str):
                     if image_file.startswith(("http://", "https://")):
                         import requests
+
                         response = requests.get(image_file, timeout=30)
                         response.raise_for_status()
                         return response.content
-                    return open(image_file, 'rb').read()
+                    return open(image_file, "rb").read()
                 elif isinstance(image_file, np.ndarray):
-                    return cv2.imencode('.jpg', image_file)[1].tobytes()
+                    return cv2.imencode(".jpg", image_file)[1].tobytes()
                 elif isinstance(image_file, torch.Tensor):
                     arr = image_file.cpu().numpy().astype(np.uint8)
-                    return cv2.imencode('.jpg', arr)[1].tobytes()
+                    return cv2.imencode(".jpg", arr)[1].tobytes()
                 elif isinstance(image_file, Image.Image):
                     buffer = io.BytesIO()
-                    image_file.save(buffer, format='JPEG')
+                    image_file.save(buffer, format="JPEG")
                     return buffer.getvalue()
                 raise ValueError(f"Unsupported image type: {type(image_file)}")
 
             image_bytes = get_image_bytes()
-            base64_str = base64.b64encode(image_bytes).decode('utf-8')
+            base64_str = base64.b64encode(image_bytes).decode("utf-8")
             return base64_str
 
         except Exception as e:
             raise ValueError(f"Failed to prepare image: {str(e)}")
 
-    def generate(self, image_file: Union[str, np.ndarray, Image.Image, torch.Tensor], prompt: str) -> Dict:
+    def generate(
+        self,
+        image_file: Union[str, np.ndarray, Image.Image, torch.Tensor],
+        prompt: str = """Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
+        Bạn được cung cấp 1 ảnh mặt trước của 1 căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân. 
+        Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json.
+        Trả lại kết quả OCR của tất cả thông tin 1 JSON duy nhất
+        Return JSON with these fields:
+{{
+    "id_number": "",
+    "fullname": "",
+    "day_of_birth": "",
+    "sex": "",
+    "nationality": "",
+    "place_of_residence": "",
+    "place_of_origin": "",
+    "date_of_expiration": "",
+    "date_of_issue": "",
+    "place_of_issue": "Bộ Công An" hoặc "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội" 
+}}
+""",
+    ) -> Dict:
         try:
             base64_data = self._prepare_image_input(image_file)
             return self.client.analyze_image(base64_data, prompt)
         except Exception as e:
             raise ValueError(f"Generation failed: {str(e)}")
 
-    def generate_multi(self, image_files: List[Union[str, np.ndarray, Image.Image, torch.Tensor]], prompt: str) -> Dict:
+    def generate_multi(
+        self,
+        image_files: List[Union[str, np.ndarray, Image.Image, torch.Tensor]],
+        prompt: str = """Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
+        Bạn được cung cấp 1 ảnh mặt trước của 1 căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân. 
+        Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json.
+        Trả lại kết quả OCR của tất cả thông tin 1 JSON duy nhất
+        Return JSON with these fields:
+{{
+    "id_number": "",
+    "fullname": "",
+    "day_of_birth": "",
+    "sex": "",
+    "nationality": "",
+    "place_of_residence": "",
+    "place_of_origin": "",
+    "date_of_expiration": "",
+    "date_of_issue": "",
+    "place_of_issue": "Bộ Công An" hoặc "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội" 
+}}
+""",
+    ) -> Dict:
         try:
             if not isinstance(image_files, list):
                 image_files = [image_files]
 
             start_time = time.time()
-            
+
             # Process all images in parallel using list comprehension
             image_contents = [
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{self._prepare_image_input(img)}"}
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{self._prepare_image_input(img)}"
+                    },
                 }
                 for img in image_files
             ]
 
             response = self.client.chat.completions.create(
                 model="erax-ai/EraX-VL-7B-V1.5",
-                messages=[{
-                    "role": "user", 
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        *image_contents
-                    ]
-                }],
-                extra_body=vars(self.client.config)
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": prompt}, *image_contents],
+                    }
+                ],
+                extra_body=vars(self.client.config),
             )
             end_time = time.time()
 
@@ -154,9 +210,9 @@ class Llm_Vision_Exes:
                     "tokens": {
                         "total": response.usage.total_tokens,
                         "prompt": response.usage.prompt_tokens,
-                        "completion": response.usage.completion_tokens
-                    }
-                }
+                        "completion": response.usage.completion_tokens,
+                    },
+                },
             }
         except Exception as e:
             raise ValueError(f"Multi-image generation failed: {str(e)}")

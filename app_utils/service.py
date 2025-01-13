@@ -13,6 +13,7 @@ from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientati
 from app_utils.util import rotate_image
 from config import ORIENTATION_MODEL_PATH, SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
+from controller.openapi_vison import Llm_Vision_Exes
 from controller.vllm_qwen_old import VLLM_Exes
 from controller.llm_controller import LlmController
 
@@ -21,7 +22,10 @@ logger = get_logger(__name__)
 detector_controller = Detector()
 llm_controller = LlmController()
 orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
-ocr_controller = VLLM_Exes() 
+ocr_controller = Llm_Vision_Exes( "" , "http://127.0.0.1:2242") 
+
+
+
 async def scan(image_paths: List[str]) -> dict:
     try:
         start_time = time.perf_counter()
