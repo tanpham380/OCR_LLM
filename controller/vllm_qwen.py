@@ -57,7 +57,7 @@ class VLLM_Exes:
     "place_of_origin": "",
     "date_of_expiration": "",
     "date_of_issue": "",
-    "place_of_issue": ""
+    "place_of_issue": "Bộ Công An" hoặc "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội" 
 }}
 """,
     ) -> str:
