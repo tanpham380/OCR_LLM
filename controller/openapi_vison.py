@@ -81,16 +81,22 @@ class OpenapiExes:
 
     def analyze_images(
         self,
-        images_base64: List[Union[str]],
+        images_base64: List[str],
         prompt: str 
     ) -> Dict:
+        """Process multiple images with the vision model.
+        
+        Args:
+            images_base64: List of base64 encoded images
+            prompt: Text prompt for analysis
+        """
         try:
-            if not isinstance(image_files, list):
-                image_files = [image_files]
+            if not isinstance(images_base64, list):
+                images_base64 = [images_base64]
 
             start_time = time.time()
 
-            # Process all images in parallel using list comprehension
+            # Process images
             image_contents = [
                 {
                     "type": "image_url",
