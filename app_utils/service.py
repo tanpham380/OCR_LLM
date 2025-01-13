@@ -3,7 +3,7 @@ import os
 import torch
 from typing import List
 from quart import g, url_for
-from app_utils.file_handler import crop_back_side, load_image, save_image, scale_up_img
+from app_utils.file_handler import crop_back_side, load_image, merge_images_vertical, save_image, scale_up_img
 from app_utils.logging import get_logger
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import rotate_image
@@ -18,8 +18,9 @@ logger = get_logger(__name__)
 detector_controller = Detector()
 llm_controller = LlmController()
 orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
-ocr_controller = Llm_Vision_Exes( "" , "http://127.0.0.1:2242") 
-
+ocr_controller = Llm_Vision_Exes(
+    api_key="1", 
+api_base="http://localhost:2242/v1")
 
 
 async def scan(image_paths: List[str]) -> dict:
@@ -44,8 +45,14 @@ async def scan(image_paths: List[str]) -> dict:
         if back_result:
             back_img = load_image(back_result["image_path"])
             cropped_back = crop_back_side(back_img)
-       
-        ocr_text = ocr_controller.generate_multi([front_result["image_path"], cropped_back])
+        front_img = load_image(front_result["image_path"])
+        if front_img is None:
+            raise ValueError("Failed to load front image")
+        merged_img = merge_images_vertical(front_img, cropped_back)
+        if merged_img is None:
+            raise ValueError("Failed to merge images")
+                                    
+        ocr_text = ocr_controller.generate(merged_img)
 
 
 

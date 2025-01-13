@@ -15,7 +15,26 @@ from app_utils.logging import get_logger
 from config import ALLOWED_EXTENSIONS, SAVE_IMAGES, TEMP_DIR
 
 logger = get_logger(__name__)
-
+def merge_images_vertical(img1, img2):
+    """Merge two numpy arrays vertically"""
+    try:
+        if not isinstance(img1, np.ndarray) or not isinstance(img2, np.ndarray):
+            raise ValueError("Inputs must be numpy arrays")
+            
+        # Resize to same width
+        width = max(img1.shape[1], img2.shape[1])
+        height1 = int(img1.shape[0] * width / img1.shape[1])
+        height2 = int(img2.shape[0] * width / img2.shape[1])
+        
+        img1 = cv2.resize(img1, (width, height1))
+        img2 = cv2.resize(img2, (width, height2))
+        
+        # Merge vertically
+        return cv2.vconcat([img1, img2])
+        
+    except Exception as e:
+        logger.error(f"Merge error: {str(e)}")
+        return None
 def generate_filename(extension: str = 'jpg') -> str:
     """Generates a filename using the format: day_month_year_uidv4."""
     return f"{datetime.datetime.now().strftime('%d_%m_%Y')}_{uuid.uuid4().hex[:8]}.{extension}"

@@ -11,7 +11,7 @@ from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 from dataclasses import dataclass
 from functools import lru_cache
-
+import requests
 
 @dataclass
 class ModelConfig:
@@ -26,17 +26,47 @@ class ModelConfig:
     best_of: int = 5
     use_beam_search: bool = False
 
-
 class OpenapiExes:
     def __init__(self, api_key: str, api_base: str):
+        # Remove trailing slash if present
+        self.api_base = api_base.rstrip('/')
         self.api_key = api_key
-        self.api_base = api_base
         self.client = OpenAI(
             api_key=self.api_key,
             base_url=self.api_base,
         )
         self.config = ModelConfig()
+        self._check_api_health()
 
+    def get_instant_api(self):
+        return self.client
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def _check_api_health(self) -> bool:
+        """Check if API is accessible and responding via /health endpoint"""
+        try:
+            # Get base API URL without /v1
+            base_url = self.api_base.rsplit('/v1', 1)[0]
+            health_url = f"{base_url}/health"
+            
+            response = requests.get(
+                health_url, 
+                timeout=10,
+                verify=False  # Skip SSL verification for local dev
+            )
+            
+            if response.status_code != 200:
+                raise ConnectionError(f"Health check failed with status {response.status_code}")
+                
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            raise ConnectionError(f"Failed to connect to API at {self.api_base}: {str(e)}")
+        except Exception as e:
+            raise ConnectionError(f"Health check failed: {str(e)}")
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
@@ -53,7 +83,7 @@ class OpenapiExes:
                             {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
+                                    "url": f"{image_base64}"
                                 },
                             },
                         ],
@@ -259,15 +289,9 @@ class Llm_Vision_Exes:
         try:
             if not isinstance(image_files, list):
                 image_files = [image_files]
-            image_contents = [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{self._prepare_image_input(img)}"
-                    },
-                }
-                for img in image_files
-            ]
-            return self.client.analyze_images(image_contents, prompt)
+            return self.client.analyze_images(
+                [self._prepare_image_input(img) for img in image_files],
+                prompt
+            )
         except Exception as e:
             raise ValueError(f"Multi-image generation failed: {str(e)}")
