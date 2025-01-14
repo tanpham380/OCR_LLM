@@ -68,7 +68,6 @@ async def scan(image_paths: List[str]) -> dict:
             ocr_text["content"] = ocr_response
         llm_response_with_time = {
             "llm_response": ocr_text,
-            "qr_code": qr_data,
             "mat_truoc": url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
             "mat_sau": url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
         }
