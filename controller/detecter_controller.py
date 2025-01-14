@@ -27,13 +27,17 @@ class Detector:
 
     def __init__(self) -> None:
         """
-        Initializes the Detector class with the necessary components for card detection, OCR, and QR code reading.
+        Initializes the Detector class with improved QR reading for Vietnamese text
         """
         self.card_detecter = ImageRectify(crop_expansion_factor = 0.0)
+        
+        # Updated QReader config for Vietnamese support
         self.qreader = QReader(
-            model_size="l", min_confidence=0.7, reencode_to="cp65001"
+            model_size="l",  # Use large model for better accuracy
+            min_confidence=0.5,  # Lower threshold for better detection
+    reencode_to=['big5', 'shift-jis', 'cp65001' ]  # Vietnamese text encoding
         )
-
+        
         self.ocr_text = None
 
     def get_qreader(self) -> QReader:

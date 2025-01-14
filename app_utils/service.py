@@ -54,18 +54,18 @@ async def scan(image_paths: List[str]) -> dict:
         merged_img = merge_images_vertical(front_img, cropped_back)
         if merged_img is None:
             raise ValueError("Failed to merge images")
-                    
+        
+        print(save_image(merged_img, TEMP_DIR, print_path = False) )          
         ocr_text = ocr_controller.generate(merged_img)
-        if qr_data:
-            ocr_response = ocr_text.get("content", {})
-            if isinstance(ocr_response, str):
-                import json
-                try:
-                    ocr_response = json.loads(ocr_response)
-                except:
-                    ocr_response = {}
-            ocr_response["qr_code"] = qr_data
-            ocr_text["content"] = ocr_response
+        ocr_response = ocr_text.get("content", {})
+        if isinstance(ocr_response, str):
+            import json
+            try:
+                ocr_response = json.loads(ocr_response)
+            except:
+                ocr_response = {}
+        ocr_response["qr_code"] = qr_data
+        ocr_text["content"] = ocr_response
         llm_response_with_time = {
             "llm_response": ocr_text,
             "mat_truoc": url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
@@ -95,6 +95,8 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
             image = rotate_image(image, orientation_res)
         image = scale_up_img(image, 480)
         image_path = save_image(image, SAVE_IMAGES, print_path =False)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
         qr_code_text = await asyncio.gather(qr_code_text_task)
 

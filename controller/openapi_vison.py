@@ -13,6 +13,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import requests
 
 
+
 GENERATION_CONFIG = {
     "temperature": 0.01,
     "top_p": 0.1,
@@ -88,7 +89,7 @@ Các trường thông tin cần nhận diện:
 Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json.
 Quy tắc kiểm tra và định dạng như đã định nghĩa ở trên.
 Trả về "" cho các trường không tìm thấy thông tin.
-Trả lại kết quả OCR của tất cả thông tin 1 JSON duy nhất với các trường sau:
+Trả lại kết quả OCR duy nhất với các trường sau:
 {
     "id_number": "",
     "fullname": "",
@@ -124,14 +125,13 @@ class OpenapiExes:
     def _check_api_health(self) -> bool:
         """Check if API is accessible and responding via /health endpoint"""
         try:
-            # Get base API URL without /v1
             base_url = self.api_base.rsplit("/v1", 1)[0]
             health_url = f"{base_url}/health"
 
             response = requests.get(
                 health_url,
                 timeout=15,
-                verify=False,  # Skip SSL verification for local dev
+                verify=False, 
             )
 
             if response.status_code != 200:
@@ -245,70 +245,51 @@ class Llm_Vision_Exes:
         self.api_base = api_base
         self.client = OpenapiExes(api_key=api_key, api_base=api_base)
 
-    @staticmethod
-    def _hash_array(arr: np.ndarray) -> str:
-        """Create hash for numpy array to use as cache key"""
-        return hashlib.md5(arr.tobytes()).hexdigest()
+
 
     @staticmethod
-    def _cache_key(
-        image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]
-    ) -> str:
-        """Generate cache key for different image types"""
-        if isinstance(image_file, str):
-            return image_file
-        elif isinstance(image_file, np.ndarray):
-            return Llm_Vision_Exes._hash_array(image_file)
-        elif isinstance(image_file, torch.Tensor):
-            return Llm_Vision_Exes._hash_array(image_file.cpu().numpy())
-        elif isinstance(image_file, Image.Image):
-            return str(hash(image_file.tobytes()))
-        return str(hash(image_file))
-
-    @staticmethod
-    def _prepare_image_input_cached(cache_key: str, image_bytes: bytes) -> str:
+    def _prepare_image_input_cached(image_bytes: bytes) -> str:
         """Cached version of image preparation"""
         base64_str = base64.b64encode(image_bytes).decode("utf-8")
         return f"data:image/jpeg;base64,{base64_str}"
 
     def _prepare_image_input(
-        self, image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]
-    ) -> str:
-        try:
-            if isinstance(image_file, str) and image_file.startswith("data:"):
-                return image_file
-
-            # Get bytes and cache key
-            if isinstance(image_file, str):
-                if image_file.startswith(("http://", "https://")):
-                    import requests
-
-                    response = requests.get(image_file, timeout=30)
-                    response.raise_for_status()
-                    image_bytes = response.content
+            self, image_file: Union[str, np.ndarray, Image.Image, torch.Tensor]
+        ) -> str:
+            try:
+                if isinstance(image_file, str) and image_file.startswith("data:"):
+                    return image_file
+                if isinstance(image_file, str):
+                    if image_file.startswith(("http://", "https://")):
+                        import requests
+                        response = requests.get(image_file, timeout=30)
+                        response.raise_for_status()
+                        image_bytes = response.content
+                    else:
+                        with open(image_file, "rb") as f:
+                            image_bytes = f.read()
+                elif isinstance(image_file, np.ndarray):
+                    if len(image_file.shape) == 2:
+                        image_bytes = cv2.imencode(".png", image_file)[1].tobytes()
+                    else:
+                        ext = ".png" if image_file.dtype == np.uint8 else ".jpg"
+                        image_bytes = cv2.imencode(ext, image_file)[1].tobytes()
+                elif isinstance(image_file, torch.Tensor):
+                    arr = image_file.cpu().numpy().astype(np.uint8)
+                    # Use PNG for tensor data
+                    image_bytes = cv2.imencode(".png", arr)[1].tobytes()
+                elif isinstance(image_file, Image.Image):
+                    buffer = io.BytesIO()
+                    fmt = image_file.format or "PNG"
+                    image_file.save(buffer, format=fmt)
+                    image_bytes = buffer.getvalue()
                 else:
-                    with open(image_file, "rb") as f:
-                        image_bytes = f.read()
-                cache_key = image_file
-            elif isinstance(image_file, np.ndarray):
-                image_bytes = cv2.imencode(".jpg", image_file)[1].tobytes()
-                cache_key = self._hash_array(image_file)
-            elif isinstance(image_file, torch.Tensor):
-                arr = image_file.cpu().numpy().astype(np.uint8)
-                image_bytes = cv2.imencode(".jpg", arr)[1].tobytes()
-                cache_key = self._hash_array(arr)
-            elif isinstance(image_file, Image.Image):
-                buffer = io.BytesIO()
-                image_file.save(buffer, format="JPEG")
-                image_bytes = buffer.getvalue()
-                cache_key = str(hash(image_bytes))
-            else:
-                raise ValueError(f"Unsupported image type: {type(image_file)}")
+                    raise ValueError(f"Unsupported image type: {type(image_file)}")
 
-            return self._prepare_image_input_cached(cache_key, image_bytes)
+                return self._prepare_image_input_cached(image_bytes)
 
-        except Exception as e:
-            raise ValueError(f"Failed to prepare image: {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Failed to prepare image: {str(e)}")
 
     def generate(
         self,

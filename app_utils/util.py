@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 import numpy as np
 import cv2
 import torch
@@ -57,23 +57,80 @@ def select_device():
     else:
         print("CUDA is not available. Using CPU.")
         return torch.device("cpu") 
+                
+CHAR_MAPPING = {
+    # Existing mappings
+    '廕': 'ạ',
+    '璽': 'â',
+    '《': 'm',
+    'ﾃ｢': 'â',
+    'ﾃ': 'ă', 
+    'ﾆｰ': 'ư',
+    '盻': 'ờ',
+    '拵': 'ờ',
+    'ﾄ': 'Đ',
+    '雪': 'ạ',
+    'ｺ｡': 'ạ',
+    '盻�': 'ọ',
+    '皇': 'c',
+    # Add common Vietnamese character fixes
+    '?' : 'ỏ',
+    'ﾄ' : 'Đ',
+    'ﾃ³': 'ó',
+    'ﾃ¢': 'â',
+    'ﾃ½': 'ý'
+}
+
+def fix_decoded_text(text: str) -> Tuple[str, Dict[str, str]]:
+    """
+    Fix Vietnamese text encoding with logging
+    Returns: (fixed_text, replacements_made)
+    """
+    if not text:
+        return text, {}
+        
+    replacements = {}
+    fixed = text
     
+    for old_char, new_char in CHAR_MAPPING.items():
+        if old_char in fixed:
+            before = fixed
+            fixed = fixed.replace(old_char, new_char)
+            replacements[old_char] = new_char
+            
+    return fixed.strip(), replacements
+
+def fix_name(text: str) -> str:
+    """Fix Vietnamese name encoding with logging"""
+    parts = text.split('|')
+    if len(parts) < 3:
+        return text
+        
+    # Fix all parts that may contain Vietnamese
+    for i, part in enumerate(parts):
+        fixed, replacements = fix_decoded_text(part)
+        parts[i] = fixed
+    
+    return '|'.join(parts)
+
 async def extract_qr_data(front_result: dict, back_result: dict) -> str:
     """Extract and validate QR data from card images"""
-    # Prioritize front card QR data
     qr_data = front_result.get("qr_code_text")
     
-    # Handle list or invalid qr_data
     if isinstance(qr_data, list):
         qr_data = qr_data[0] if qr_data else None
     
-    # Check if empty/invalid and try back card
     if not qr_data or (isinstance(qr_data, str) and qr_data.isspace()):
         qr_data = back_result.get("qr_code_text")
         if isinstance(qr_data, list):
             qr_data = qr_data[0] if qr_data else None
+            
+    if qr_data:
+        # Fix and log corrections
+        qr_data = fix_name(qr_data)
+        
     return normalize_qr_data(qr_data) if qr_data else None
-                
+
 
 
 def normalize_qr_data(qr_data: Any) -> str:
