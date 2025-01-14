@@ -12,6 +12,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 import requests
 
+# from app_utils.util import clean_content
+
 
 
 GENERATION_CONFIG = {
@@ -26,16 +28,13 @@ GENERATION_CONFIG = {
 
 DEFAULT_PROMPT = """
 Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
-Bạn được cung cấp 1 ảnh của 1 căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân.
-## Tham khảo danh sách các họ phổ biến và tỉnh/thành của Việt Nam:
-- Các họ phổ biến ở Việt Nam: NGUYỄN, Nguyễn, TRẦN, Trần, LÊ, Lê, ĐINH, Đinh, PHẠM, Phạm, TRỊNH, Trịnh, LÝ, Lý, HOÀNG, Hoàng, BÙI, Bùi, NGÔ, Ngô, PHAN, Phan, VÕ, Võ, HỒ, Hồ, HUỲNH, Huỳnh, TRƯƠNG, Trương, ĐẶNG, Đặng, ĐỖ, Đỗ, ...
-- [Địa danh] Hà Nội, TP. Hồ Chí Minh, Đà Nẵng, Hải Phòng, Cần Thơ, An Giang, Bà Rịa-Vũng Tàu, Bắc Giang, Bắc Kạn, Bạc Liêu, ...
-(Tham khảo chi tiết các tỉnh/thành theo danh sách chuẩn của Việt Nam)
+Bạn được cung cấp ảnh của căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân.
 - Lưu ý là các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
 - Không được bỏ sót bất kỳ thông tin chi tiết nào về địa chỉ quê quán hoặc địa chỉ thường trú hoặc ngày hết hạn của thẻ.
 - Bảo đảm các câu từ có dấu tiếng Việt là đầy đủ và chính xác.
-Quy tắc kiểm tra:
-Các trường thông tin cần nhận diện:
+- Không để kí tự '\n' xuống dòng ở bất kỳ vị trí nào trong kết quả trả về. ví dụ "Tổ 4, Ấp Vũng Gấm\nPhước An, Nhơn Trạch, Đồng Nai" thì trả kết quả về là "Tổ 4, Ấp Vũng Gấm, Phước An, Nhơn Trạch, Đồng Nai"
+Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json theo qui tắc sau.
+qui tắc:
 {
     "id_number": {
         "vi": ["Số","Số định danh cá nhân"],
@@ -45,7 +44,6 @@ Các trường thông tin cần nhận diện:
     "fullname": {
         "vi": ["Họ và tên", "Họ, chữ đệm và tên khai sinh"],
         "en": ["Full name"],
-        "format": "Họ và tên đầy đủ có dấu"
     },
     "day_of_birth": {
         "vi": ["Ngày sinh", "Ngày, tháng, năm sinh"],
@@ -86,9 +84,6 @@ Các trường thông tin cần nhận diện:
         "valid": ["Bộ Công An", "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội"]
     }
 }
-Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json.
-Quy tắc kiểm tra và định dạng như đã định nghĩa ở trên.
-Trả về "" cho các trường không tìm thấy thông tin.
 Trả lại kết quả OCR duy nhất với các trường sau:
 {
     "id_number": "",
@@ -222,6 +217,8 @@ class OpenapiExes:
             )
             end_time = time.time()
 
+            
+
             return {
                 "content": response.choices[0].message.content,
                 "metadata": {
@@ -247,8 +244,7 @@ class Llm_Vision_Exes:
 
 
 
-    @staticmethod
-    def _prepare_image_input_cached(image_bytes: bytes) -> str:
+    def _prepare_image_input_cached(self,image_bytes: bytes) -> str:
         """Cached version of image preparation"""
         base64_str = base64.b64encode(image_bytes).decode("utf-8")
         return f"data:image/jpeg;base64,{base64_str}"
@@ -270,18 +266,20 @@ class Llm_Vision_Exes:
                             image_bytes = f.read()
                 elif isinstance(image_file, np.ndarray):
                     if len(image_file.shape) == 2:
-                        image_bytes = cv2.imencode(".png", image_file)[1].tobytes()
-                    else:
-                        ext = ".png" if image_file.dtype == np.uint8 else ".jpg"
-                        image_bytes = cv2.imencode(ext, image_file)[1].tobytes()
+                        # Convert grayscale to RGB before JPEG encoding
+                        image_file = cv2.cvtColor(image_file, cv2.COLOR_GRAY2RGB)
+                    image_bytes = cv2.imencode(".jpg", image_file)[1].tobytes()
                 elif isinstance(image_file, torch.Tensor):
                     arr = image_file.cpu().numpy().astype(np.uint8)
-                    # Use PNG for tensor data
-                    image_bytes = cv2.imencode(".png", arr)[1].tobytes()
+                    if arr.shape[-1] == 1:  # Handle grayscale
+                        arr = cv2.cvtColor(arr, cv2.COLOR_GRAY2RGB)
+                    image_bytes = cv2.imencode(".jpg", arr)[1].tobytes()
                 elif isinstance(image_file, Image.Image):
                     buffer = io.BytesIO()
-                    fmt = image_file.format or "PNG"
-                    image_file.save(buffer, format=fmt)
+                    # Convert to RGB if needed
+                    if image_file.mode not in ('RGB', 'RGBA'):
+                        image_file = image_file.convert('RGB')
+                    image_file.save(buffer, format='JPEG', quality=95)
                     image_bytes = buffer.getvalue()
                 else:
                     raise ValueError(f"Unsupported image type: {type(image_file)}")

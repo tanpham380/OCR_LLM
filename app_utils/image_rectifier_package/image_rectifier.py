@@ -15,7 +15,7 @@ class ImageRectify:
         model = YOLO(model_path)
         model.conf = 0.5
         model.iou = 0.5
-        model.to('cpu')  # Ensure model runs on CPU
+        model.to('cuda')  # Ensure model runs on CPU
         return model
 
     def process_normal_yolo(self, image: np.ndarray) -> Tuple[np.ndarray, str]:

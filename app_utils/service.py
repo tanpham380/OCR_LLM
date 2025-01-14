@@ -43,19 +43,17 @@ async def scan(image_paths: List[str]) -> dict:
         # Extract QR data
         qr_data = await extract_qr_data(front_result, back_result)
         
-        # Process images
+        # # Process images
         back_img = load_image(back_result["image_path"])
-        cropped_back = crop_back_side(back_img)
         front_img = load_image(front_result["image_path"])
         
         if front_img is None:
             raise ValueError("Failed to load front image")
             
-        merged_img = merge_images_vertical(front_img, cropped_back)
+        merged_img = merge_images_vertical(front_img, back_img)
         if merged_img is None:
             raise ValueError("Failed to merge images")
         
-        print(save_image(merged_img, TEMP_DIR, print_path = False) )          
         ocr_text = ocr_controller.generate(merged_img)
         ocr_response = ocr_text.get("content", {})
         if isinstance(ocr_response, str):
@@ -94,12 +92,13 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
         if orientation_res != 0:
             image = rotate_image(image, orientation_res)
         image = scale_up_img(image, 480)
-        image_path = save_image(image, SAVE_IMAGES, print_path =False)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
         qr_code_text = await asyncio.gather(qr_code_text_task)
-
+        if not mat_truoc:
+            image = crop_back_side(image)
+        image_path = save_image(image, SAVE_IMAGES, print_path =False)
         return {
             "qr_code_text": qr_code_text or " ",
             "mat_truoc": mat_truoc,
