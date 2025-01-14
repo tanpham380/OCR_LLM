@@ -6,7 +6,7 @@ from quart import g, url_for
 from app_utils.file_handler import crop_back_side, load_image, merge_images_vertical, save_image, scale_up_img
 from app_utils.logging import get_logger
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
-from app_utils.util import rotate_image
+from app_utils.util import extract_qr_data, rotate_image
 from config import ORIENTATION_MODEL_PATH, SAVE_IMAGES, TEMP_DIR
 from controller.detecter_controller import Detector
 from controller.openapi_vison import Llm_Vision_Exes
@@ -25,12 +25,10 @@ api_base="http://localhost:2242/v1")
 
 async def scan(image_paths: List[str]) -> dict:
     try:
-        db_manager = g.db_manager
-        if not db_manager:
-            raise RuntimeError("Database manager not initialized.")
         front_result = None
         back_result = None
         mat_sau = False
+        
         for path in image_paths:
             result = await process_image(path, mat_sau)
             if result["mat_truoc"]:
@@ -41,23 +39,36 @@ async def scan(image_paths: List[str]) -> dict:
 
         if not front_result or not back_result:
             raise ValueError("Could not determine front and back images.")
+            
+        # Extract QR data
+        qr_data = await extract_qr_data(front_result, back_result)
         
-        if back_result:
-            back_img = load_image(back_result["image_path"])
-            cropped_back = crop_back_side(back_img)
+        # Process images
+        back_img = load_image(back_result["image_path"])
+        cropped_back = crop_back_side(back_img)
         front_img = load_image(front_result["image_path"])
+        
         if front_img is None:
             raise ValueError("Failed to load front image")
+            
         merged_img = merge_images_vertical(front_img, cropped_back)
         if merged_img is None:
             raise ValueError("Failed to merge images")
-                                    
+                    
         ocr_text = ocr_controller.generate(merged_img)
-
-
-
+        if qr_data:
+            ocr_response = ocr_text.get("content", {})
+            if isinstance(ocr_response, str):
+                import json
+                try:
+                    ocr_response = json.loads(ocr_response)
+                except:
+                    ocr_response = {}
+            ocr_response["qr_code"] = qr_data
+            ocr_text["content"] = ocr_response
         llm_response_with_time = {
             "llm_response": ocr_text,
+            "qr_code": qr_data,
             "mat_truoc": url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
             "mat_sau": url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
         }
@@ -85,11 +96,11 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
             image = rotate_image(image, orientation_res)
         image = scale_up_img(image, 480)
         image_path = save_image(image, SAVE_IMAGES, print_path =False)
-        # qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
-        # qr_code_text = await asyncio.gather(qr_code_text_task)
+        qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
+        qr_code_text = await asyncio.gather(qr_code_text_task)
 
         return {
-            # "qr_code_text": qr_code_text or " ",
+            "qr_code_text": qr_code_text or " ",
             "mat_truoc": mat_truoc,
             "image_path": image_path
         }

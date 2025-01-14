@@ -1,4 +1,5 @@
 import datetime
+from typing import Any, Dict
 import numpy as np
 import cv2
 import torch
@@ -57,10 +58,33 @@ def select_device():
         print("CUDA is not available. Using CPU.")
         return torch.device("cpu") 
     
+async def extract_qr_data(front_result: dict, back_result: dict) -> str:
+    """Extract and validate QR data from card images"""
+    # Prioritize front card QR data
+    qr_data = front_result.get("qr_code_text")
     
+    # Handle list or invalid qr_data
+    if isinstance(qr_data, list):
+        qr_data = qr_data[0] if qr_data else None
+    
+    # Check if empty/invalid and try back card
+    if not qr_data or (isinstance(qr_data, str) and qr_data.isspace()):
+        qr_data = back_result.get("qr_code_text")
+        if isinstance(qr_data, list):
+            qr_data = qr_data[0] if qr_data else None
+    return normalize_qr_data(qr_data) if qr_data else None
+                
 
 
+def normalize_qr_data(qr_data: Any) -> str:
+    """Normalize QR code data to string format."""
+    if isinstance(qr_data, (list, tuple)):
+        return qr_data[0] if qr_data else ""
+    return str(qr_data).strip()
 
+def get_ocr_result( ocr_results: Dict[str, Any], key: str, subkey: str) -> str:
+    """Safely extract OCR results."""
+    return ocr_results.get(key, {}).get(subkey, "")
     
 def rotate_image(img: np.ndarray, angle: float) -> np.ndarray:
     """

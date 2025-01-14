@@ -54,7 +54,7 @@ class OpenapiExes:
             
             response = requests.get(
                 health_url, 
-                timeout=10,
+                timeout=15,
                 verify=False  # Skip SSL verification for local dev
             )
             
@@ -191,7 +191,6 @@ class Llm_Vision_Exes:
         return str(hash(image_file))
 
     @staticmethod
-    @lru_cache(maxsize=100)
     def _prepare_image_input_cached(cache_key: str, image_bytes: bytes) -> str:
         """Cached version of image preparation"""
         base64_str = base64.b64encode(image_bytes).decode("utf-8")
@@ -245,16 +244,16 @@ class Llm_Vision_Exes:
         Trả lại kết quả OCR của tất cả thông tin 1 JSON duy nhất
         Return JSON with these fields:
 {{
-    "id_number": "",
-    "fullname": "",
-    "day_of_birth": "",
-    "sex": "",
-    "nationality": "",
-    "place_of_residence": "",
-    "place_of_origin": "",
-    "date_of_expiration": "",
-    "date_of_issue": "",
-    "place_of_issue": "Bộ Công An" hoặc "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội" 
+"id_number": "",
+"fullname": "",
+"day_of_birth": "",
+"sex": "",
+"nationality": "",
+"place_of_residence": "",
+"place_of_origin": "",
+"date_of_expiration": "",
+"date_of_issue": "",
+"place_of_issue": "Bộ Công An" hoặc "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội" 
 }}
 """,
     ) -> Dict:

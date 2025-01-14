@@ -15,8 +15,8 @@ from app_utils.logging import get_logger
 from config import ALLOWED_EXTENSIONS, SAVE_IMAGES, TEMP_DIR
 
 logger = get_logger(__name__)
-def merge_images_vertical(img1, img2):
-    """Merge two numpy arrays vertically"""
+def merge_images_vertical(img1, img2, padding_height=20):
+    """Merge two numpy arrays vertically with padding"""
     try:
         if not isinstance(img1, np.ndarray) or not isinstance(img2, np.ndarray):
             raise ValueError("Inputs must be numpy arrays")
@@ -29,8 +29,11 @@ def merge_images_vertical(img1, img2):
         img1 = cv2.resize(img1, (width, height1))
         img2 = cv2.resize(img2, (width, height2))
         
-        # Merge vertically
-        return cv2.vconcat([img1, img2])
+        # Create white padding
+        padding = np.full((padding_height, width, 3), 255, dtype=np.uint8)
+        
+        # Merge with padding
+        return cv2.vconcat([img1, padding, img2])
         
     except Exception as e:
         logger.error(f"Merge error: {str(e)}")
