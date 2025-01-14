@@ -32,7 +32,6 @@ Bạn được cung cấp ảnh của căn cước công dân hợp pháp, khôn
 - Lưu ý là các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
 - Không được bỏ sót bất kỳ thông tin chi tiết nào về địa chỉ quê quán hoặc địa chỉ thường trú hoặc ngày hết hạn của thẻ.
 - Bảo đảm các câu từ có dấu tiếng Việt là đầy đủ và chính xác.
-- Không để kí tự '\n' xuống dòng ở bất kỳ vị trí nào trong kết quả trả về. ví dụ "Tổ 4, Ấp Vũng Gấm\nPhước An, Nhơn Trạch, Đồng Nai" thì trả kết quả về là "Tổ 4, Ấp Vũng Gấm, Phước An, Nhơn Trạch, Đồng Nai"
 Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json theo qui tắc sau.
 qui tắc:
 {
@@ -98,6 +97,13 @@ Trả lại kết quả OCR duy nhất với các trường sau:
     "place_of_issue": "Cơ quan cấp: 'Bộ Công An' hoặc 'Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội'"
 }
 """
+def clean_response_content(response_content: dict) -> dict:
+    for key, value in response_content.items():
+        if isinstance(value, str):
+            response_content[key] = value.replace("\n", " ")
+        elif isinstance(value, dict):
+            response_content[key] = clean_response_content(value)  # Đệ quy nếu value là dict
+    return response_content
 
 
 class OpenapiExes:
@@ -166,9 +172,13 @@ class OpenapiExes:
                 extra_body=GENERATION_CONFIG,  # Use updated config
             )
             end_time = time.time()
-
+            content = clean_response_content(response.choices[0].message.content)
+            # if isinstance(content, dict):
+            #     for key, value in content.items():
+            #         if isinstance(value, str):
+            #             content[key] = value.replace("\n", " ")
             return {
-                "content": response.choices[0].message.content,
+                "content": content,
                 "metadata": {
                     "model": response.model,
                     "created": response.created,
