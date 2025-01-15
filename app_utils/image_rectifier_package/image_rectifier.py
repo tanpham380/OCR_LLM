@@ -1,13 +1,13 @@
 from typing import Optional, Tuple
 import numpy as np
 from ultralytics import YOLO
-from config import CORNER_MODEL_PATH
-# CORNER_MODEL_PATH
 import torch
+from config import CORNER_MODEL_PATH
 
 class ImageRectify:
     def __init__(self, crop_expansion_factor: float = 0.05):
-        self.CORNER_MODEL = self.load_yolov8_model(CORNER_MODEL_PATH)  # Replace with your model path
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.CORNER_MODEL = self.load_yolov8_model(CORNER_MODEL_PATH)
         self.crop_expansion_factor = crop_expansion_factor
 
     @staticmethod
@@ -15,24 +15,23 @@ class ImageRectify:
         model = YOLO(model_path)
         model.conf = 0.5
         model.iou = 0.5
-        model.to('cuda')  # Ensure model runs on CPU
+        model.fuse()  # Fuse model layers for better GPU performance
         return model
 
     def process_normal_yolo(self, image: np.ndarray) -> Tuple[np.ndarray, str]:
-        result = self.CORNER_MODEL(image)[0]
-        print(result.boxes)
+        result = self.CORNER_MODEL(image, device=self.device)[0]
         if not result.boxes:
-            return image , "front"
+            return image, "front"
         class_index = int(result.boxes.cls[0])
         detected_name = result.names[class_index]
-        boxes = result.boxes.xyxy.cpu().numpy()
+        boxes = result.boxes.xyxy.cpu().numpy()  # Only move to CPU when needed
         return boxes, detected_name
 
-    @staticmethod
-    def expand_box(box: torch.Tensor, image_shape: Tuple[int, int, int], crop_expansion_factor: float) -> torch.Tensor:
+    def expand_box(self, box: torch.Tensor, image_shape: Tuple[int, int, int], crop_expansion_factor: float) -> torch.Tensor:
         h, w = image_shape[0], image_shape[1]
+        box = box.to(self.device)  # Move box to GPU
+        
         x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-
         box_width = x2 - x1
         box_height = y2 - y1
 
@@ -46,12 +45,14 @@ class ImageRectify:
     @torch.no_grad()
     def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, bool]]:
         boxes, detected_name = self.process_normal_yolo(image)
-        if len(boxes) == 0:
-            return image
+        if isinstance(boxes, np.ndarray) and len(boxes) == 0:
+            return image, False
 
-        box = torch.from_numpy(boxes[0]).float().cpu()  # Ensure box is on CPU
+        box = torch.from_numpy(boxes[0]).float().to(self.device)
         expanded_box = self.expand_box(box, image.shape, self.crop_expansion_factor)
-        x1, y1, x2, y2 = map(int, expanded_box.tolist())
+        x1, y1, x2, y2 = map(int, expanded_box.cpu().tolist())  # Move to CPU only for final numpy operations
+        
         cropped_image = image[y1:y2, x1:x2]
         is_front = detected_name == "front"
+        
         return cropped_image, is_front
