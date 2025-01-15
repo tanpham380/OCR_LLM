@@ -97,14 +97,19 @@ Trả lại kết quả OCR duy nhất với các trường sau:
     "place_of_issue": "Cơ quan cấp: 'Bộ Công An' hoặc 'Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội'"
 }
 """
-def clean_response_content(response_content: dict) -> dict:
+
+def clean_response_content(response_content: str) -> dict:
+    import json    
+    if isinstance(response_content, str):
+        response_content = json.loads(response_content)        
+    cleaned = {}
     for key, value in response_content.items():
         if isinstance(value, str):
-            response_content[key] = value.replace("\n", " ")
+            cleaned[key] = value.replace("\\n", " ").replace("\n", " ").strip()
         elif isinstance(value, dict):
-            response_content[key] = clean_response_content(value)  # Đệ quy nếu value là dict
-    return response_content
-
+            cleaned[key] = clean_response_content(value)
+    
+    return cleaned
 
 class OpenapiExes:
     def __init__(self, api_key: str, api_base: str):
