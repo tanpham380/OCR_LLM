@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import torch
 from typing import List
 from quart import g, url_for
@@ -20,22 +21,19 @@ llm_controller = LlmController()
 orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
 ocr_controller = Llm_Vision_Exes(
     api_key="1", 
-api_base="http://localhost:2242/v1")
+api_base="http://172.18.249.58:8000/v1")
 
 
 async def scan(image_paths: List[str]) -> dict:
+    start_time = time.time()
+
     try:
-        front_result = None
-        back_result = None
-        mat_sau = False
+        # Process both images concurrently
+        results = await asyncio.gather(*[process_image(path) for path in image_paths])
         
-        for path in image_paths:
-            result = await process_image(path, mat_sau)
-            if result["mat_truoc"]:
-                front_result = result
-                mat_sau = True
-            else:
-                back_result = result
+        # Classify front and back results
+        front_result = next((r for r in results if r["mat_truoc"]), None)
+        back_result = next((r for r in results if not r["mat_truoc"]), None)
 
         if not front_result or not back_result:
             raise ValueError("Could not determine front and back images.")
@@ -43,7 +41,7 @@ async def scan(image_paths: List[str]) -> dict:
         # Extract QR data
         qr_data = await extract_qr_data(front_result, back_result)
         
-        # # Process images
+        # Process images
         back_img = load_image(back_result["image_path"])
         front_img = load_image(front_result["image_path"])
         
@@ -64,10 +62,12 @@ async def scan(image_paths: List[str]) -> dict:
                 ocr_response = {}
         ocr_response["qr_code"] = qr_data
         ocr_text["content"] = ocr_response
+        
         llm_response_with_time = {
             "llm_response": ocr_text,
             "mat_truoc": url_for('static', filename=f'images/{os.path.basename(front_result["image_path"])}', _external=True),
-            "mat_sau": url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True)
+            "mat_sau": url_for('static', filename=f'images/{os.path.basename(back_result["image_path"])}', _external=True),
+            "processing_time_s": round(time.time() - start_time, 2)
         }
 
         if torch.cuda.is_available():
@@ -78,7 +78,6 @@ async def scan(image_paths: List[str]) -> dict:
     except Exception as e:
         logger.error(f"An error occurred during the scanning process: {e}")
         raise e
-
 
 async def process_image(image_path: str , mat_sau = False) -> dict:
     try:

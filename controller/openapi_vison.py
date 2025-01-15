@@ -14,6 +14,7 @@ import requests
 
 # from app_utils.util import clean_content
 
+# GENERATION_CONFIG = dict(max_new_tokens= 1024, do_sample=False, num_beams = 3, repetition_penalty=2.5)
 
 
 GENERATION_CONFIG = {
@@ -97,13 +98,22 @@ Trả lại kết quả OCR duy nhất với các trường sau:
     "place_of_issue": "Cơ quan cấp: 'Bộ Công An' hoặc 'Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội'"
 }
 """
-def clean_response_content(response_content: dict) -> dict:
+def clean_response_content(response_content: str) -> dict:
+    import json
+    
+    # Parse JSON string to dict if input is string
+    if isinstance(response_content, str):
+        response_content = json.loads(response_content)
+        
+    # Clean content
+    cleaned = {}
     for key, value in response_content.items():
         if isinstance(value, str):
-            response_content[key] = value.replace("\n", " ")
+            cleaned[key] = value.replace("\\n", " ").replace("\n", " ").strip()
         elif isinstance(value, dict):
-            response_content[key] = clean_response_content(value)  # Đệ quy nếu value là dict
-    return response_content
+            cleaned[key] = clean_response_content(value)
+    
+    return cleaned
 
 
 class OpenapiExes:
@@ -154,9 +164,9 @@ class OpenapiExes:
     )
     def analyze_image(self, image_base64: str, prompt: str) -> Dict:
         try:
-            start_time = time.time()
+            # start_time = time.time()
             response = self.client.chat.completions.create(
-                model="erax-ai/EraX-VL-7B-V1.5",
+                model=self.client.models.list().data[0].id,
                 messages=[
                     {
                         "role": "user",
@@ -172,23 +182,24 @@ class OpenapiExes:
                 extra_body=GENERATION_CONFIG,  # Use updated config
             )
             end_time = time.time()
-            content = clean_response_content(response.choices[0].message.content)
+            content = response.choices[0].message.content
+            # content = clean_response_content(content)
             # if isinstance(content, dict):
             #     for key, value in content.items():
             #         if isinstance(value, str):
             #             content[key] = value.replace("\n", " ")
             return {
                 "content": content,
-                "metadata": {
-                    "model": response.model,
-                    "created": response.created,
-                    "response_time": f"{end_time - start_time:.2f}",
-                    "tokens": {
-                        "total": response.usage.total_tokens,
-                        "prompt": response.usage.prompt_tokens,
-                        "completion": response.usage.completion_tokens,
-                    },
-                },
+                # "metadata": {
+                #     "model": response.model,
+                #     "created": response.created,
+                #     "response_time": f"{end_time - start_time:.2f}",
+                #     "tokens": {
+                #         "total": response.usage.total_tokens,
+                #         "prompt": response.usage.prompt_tokens,
+                #         "completion": response.usage.completion_tokens,
+                #     },
+                # },
             }
         except Exception as e:
             raise ValueError(f"Analysis failed: {str(e)}")
@@ -216,7 +227,7 @@ class OpenapiExes:
             ]
 
             response = self.client.chat.completions.create(
-                model="erax-ai/EraX-VL-7B-V1.5",
+                model=self.client.models.list().data[0].id,
                 messages=[
                     {
                         "role": "user",
@@ -231,16 +242,16 @@ class OpenapiExes:
 
             return {
                 "content": response.choices[0].message.content,
-                "metadata": {
-                    "model": response.model,
-                    "created": response.created,
-                    "response_time": f"{end_time - start_time:.2f}",
-                    "tokens": {
-                        "total": response.usage.total_tokens,
-                        "prompt": response.usage.prompt_tokens,
-                        "completion": response.usage.completion_tokens,
-                    },
-                },
+                # "metadata": {
+                #     "model": response.model,
+                #     "created": response.created,
+                #     "response_time": f"{end_time - start_time:.2f}",
+                #     "tokens": {
+                #         "total": response.usage.total_tokens,
+                #         "prompt": response.usage.prompt_tokens,
+                #         "completion": response.usage.completion_tokens,
+                #     },
+                # },
             }
         except Exception as e:
             raise ValueError(f"Multi-image generation failed: {str(e)}")
