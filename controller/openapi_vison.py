@@ -32,8 +32,7 @@ GENERATION_CONFIG = {
 #     "best_of": 5,
 # }
 DEFAULT_PROMPT = """
- Liệt kê toàn bộ văn bản có trong ảnh
-"""
+Trích xuất thông tin từ ảnh và trả về dạng Json."""
 # DEFAULT_PROMPT = """
 # Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
 # Bạn được cung cấp ảnh của căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân.
