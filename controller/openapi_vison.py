@@ -14,90 +14,97 @@ import requests
 
 # from app_utils.util import clean_content
 
-# GENERATION_CONFIG = dict(max_new_tokens= 1024, do_sample=False, num_beams = 3, repetition_penalty=2.5)
-
 
 GENERATION_CONFIG = {
-    "temperature": 0.01,
-    "top_p": 0.1,
-    "min_p": 0.1,
-    "top_k": 1,
-    "max_tokens": 1024,
-    "repetition_penalty": 1.1,
-    "best_of": 5,
+    "max_tokens": 1024,              # vLLM max tokens to generate
+    "best_of": 3,                   # Similar to num_beams
+    "stop": None,                   # Stop sequences
+    "stream": False                 # Don't stream responses
 }
 
+# GENERATION_CONFIG = {
+#     "temperature": 0.01,
+#     "top_p": 0.1,
+#     "min_p": 0.1,
+#     "top_k": 1,
+#     "max_tokens": 1024,
+#     "repetition_penalty": 1.1,
+#     "best_of": 5,
+# }
 DEFAULT_PROMPT = """
-Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
-Bạn được cung cấp ảnh của căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân.
-- Lưu ý là các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
-- Không được bỏ sót bất kỳ thông tin chi tiết nào về địa chỉ quê quán hoặc địa chỉ thường trú hoặc ngày hết hạn của thẻ.
-- Bảo đảm các câu từ có dấu tiếng Việt là đầy đủ và chính xác.
-Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json theo qui tắc sau.
-qui tắc:
-{
-    "id_number": {
-        "vi": ["Số","Số định danh cá nhân"],
-        "en": ["No.", "Personal Identification Number", "ID Number"],
-        "format": "12 chữ số "
-    },
-    "fullname": {
-        "vi": ["Họ và tên", "Họ, chữ đệm và tên khai sinh"],
-        "en": ["Full name"],
-    },
-    "day_of_birth": {
-        "vi": ["Ngày sinh", "Ngày, tháng, năm sinh"],
-        "en": ["Date of birth"],
-        "format": "DD/MM/YYYY"
-    },
-    "sex": {
-        "vi": ["Giới tính"],
-        "en": ["Sex"],
-        "valid": ["Nam", "Nữ"]
-    },
-    "nationality": {
-        "vi": ["Quốc tịch"],
-        "en": ["Nationality"],
-        "default": "Việt Nam"
-    },
-    "place_of_residence": {
-        "vi": ["Nơi thường trú", "Nơi cư trú],
-        "en": ["Place of residence"],
-    },
-    "place_of_origin": {
-        "vi": ["Quê quán", "Nơi đăng kí khai sinh"],
-        "en": ["Place of origin", "Place of birth"],
-    },
-    "date_of_expiration": {
-        "vi": ["Ngày, tháng, năm", "Ngày,Tháng, Năm hết hạn"],
-        "en": ["Date of expiry" , "Date, month, year:],
-        "format": "DD/MM/YYYY"
-    },
-    "date_of_issue": {
-        "vi": ["Ngày cấp", "Ngày,Tháng, Năm cấp"],
-        "en": ["Date of issue"],
-        "format": "DD/MM/YYYY"
-    },
-    "place_of_issue": {
-        "vi": ["Nơi cấp", "Cơ quan cấp"],
-        "en": ["Place of issue"],
-        "valid": ["Bộ Công An", "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội"]
-    }
-}
-Trả lại kết quả OCR duy nhất với các trường sau:
-{
-    "id_number": "",
-    "fullname": "",
-    "day_of_birth": "",
-    "sex": "",
-    "nationality": "",
-    "place_of_residence": "",
-    "place_of_origin": "", 
-    "date_of_expiration": "",
-    "date_of_issue": "",
-    "place_of_issue": "Cơ quan cấp: 'Bộ Công An' hoặc 'Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội'"
-}
+ Liệt kê toàn bộ văn bản có trong ảnh
 """
+# DEFAULT_PROMPT = """
+# Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
+# Bạn được cung cấp ảnh của căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân.
+# - Lưu ý là các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
+# - Không được bỏ sót bất kỳ thông tin chi tiết nào về địa chỉ quê quán hoặc địa chỉ thường trú hoặc ngày hết hạn của thẻ.
+# - Bảo đảm các câu từ có dấu tiếng Việt là đầy đủ và chính xác.
+# Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json theo qui tắc sau.
+# qui tắc:
+# {
+#     "id_number": {
+#         "vi": ["Số","Số định danh cá nhân"],
+#         "en": ["No.", "Personal Identification Number", "ID Number"],
+#         "format": "12 chữ số "
+#     },
+#     "fullname": {
+#         "vi": ["Họ và tên", "Họ, chữ đệm và tên khai sinh"],
+#         "en": ["Full name"],
+#     },
+#     "day_of_birth": {
+#         "vi": ["Ngày sinh", "Ngày, tháng, năm sinh"],
+#         "en": ["Date of birth"],
+#         "format": "DD/MM/YYYY"
+#     },
+#     "sex": {
+#         "vi": ["Giới tính"],
+#         "en": ["Sex"],
+#         "valid": ["Nam", "Nữ"]
+#     },
+#     "nationality": {
+#         "vi": ["Quốc tịch"],
+#         "en": ["Nationality"],
+#         "default": "Việt Nam"
+#     },
+#     "place_of_residence": {
+#         "vi": ["Nơi thường trú", "Nơi cư trú],
+#         "en": ["Place of residence"],
+#     },
+#     "place_of_origin": {
+#         "vi": ["Quê quán", "Nơi đăng kí khai sinh"],
+#         "en": ["Place of origin", "Place of birth"],
+#     },
+#     "date_of_expiration": {
+#         "vi": ["Ngày, tháng, năm", "Ngày,Tháng, Năm hết hạn"],
+#         "en": ["Date of expiry" , "Date, month, year:],
+#         "format": "DD/MM/YYYY"
+#     },
+#     "date_of_issue": {
+#         "vi": ["Ngày cấp", "Ngày,Tháng, Năm cấp"],
+#         "en": ["Date of issue"],
+#         "format": "DD/MM/YYYY"
+#     },
+#     "place_of_issue": {
+#         "vi": ["Nơi cấp", "Cơ quan cấp"],
+#         "en": ["Place of issue"],
+#         "valid": ["Bộ Công An", "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội"]
+#     }
+# }
+# Trả lại kết quả OCR duy nhất với các trường sau:
+# {
+#     "id_number": "",
+#     "fullname": "",
+#     "day_of_birth": "",
+#     "sex": "",
+#     "nationality": "",
+#     "place_of_residence": "",
+#     "place_of_origin": "", 
+#     "date_of_expiration": "",
+#     "date_of_issue": "",
+#     "place_of_issue": "Cơ quan cấp: 'Bộ Công An' hoặc 'Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội'"
+# }
+# """
 def clean_response_content(response_content: str) -> dict:
     import json
     
@@ -179,10 +186,12 @@ class OpenapiExes:
                         ],
                     }
                 ],
-                extra_body=GENERATION_CONFIG,  # Use updated config
+                
+                # extra_body=GENERATION_CONFIG,  # Use updated config
             )
-            end_time = time.time()
+            # end_time = time.time()
             content = response.choices[0].message.content
+            print(content)
             # content = clean_response_content(content)
             # if isinstance(content, dict):
             #     for key, value in content.items():

@@ -51,7 +51,7 @@ async def scan(image_paths: List[str]) -> dict:
         merged_img = merge_images_vertical(front_img, back_img)
         if merged_img is None:
             raise ValueError("Failed to merge images")
-        
+        save_image(merged_img , TEMP_DIR)
         ocr_text = ocr_controller.generate(merged_img)
         ocr_response = ocr_text.get("content", {})
         if isinstance(ocr_response, str):
