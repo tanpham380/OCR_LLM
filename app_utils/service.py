@@ -21,7 +21,7 @@ llm_controller = LlmController()
 orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
 ocr_controller = Llm_Vision_Exes(
     api_key="1", 
-api_base="http://172.18.249.58:8000/v1")
+api_base="http:/127.0.0.1:2242/v1")
 
 
 async def scan(image_paths: List[str]) -> dict:
