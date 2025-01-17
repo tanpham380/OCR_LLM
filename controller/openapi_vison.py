@@ -80,7 +80,7 @@ qui tắc:
     "place_of_issue": {
         "vi": ["Nơi cấp", "Cơ quan cấp"],
         "en": ["Place of issue"],
-        "valid": ["Bộ Công An", "Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội"]
+     "format": 'Cục Trưởng Cục Cảnh Sát Quản Lý Hành Chính Về Trật Tự Xã Hội' hoặc 'Bộ Công An' "
     }
 }
 Trả lại kết quả OCR duy nhất với các trường sau:
@@ -94,7 +94,7 @@ Trả lại kết quả OCR duy nhất với các trường sau:
     "place_of_origin": "", 
     "date_of_expiration": "",
     "date_of_issue": "",
-    "place_of_issue": "Cơ quan cấp: 'Bộ Công An' hoặc 'Cục Trưởng Cục Cảnh sát Quản lý hành chính về trật tự xã hội'"
+    "place_of_issue": ""
 }
 """
 

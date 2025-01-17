@@ -24,12 +24,11 @@ class ImageRectify:
             return image, "front"
         class_index = int(result.boxes.cls[0])
         detected_name = result.names[class_index]
-        boxes = result.boxes.xyxy.cpu().numpy()  # Only move to CPU when needed
+        boxes = result.boxes.xyxy.to(self.device)  # Keep boxes on the same device
         return boxes, detected_name
 
     def expand_box(self, box: torch.Tensor, image_shape: Tuple[int, int, int], crop_expansion_factor: float) -> torch.Tensor:
         h, w = image_shape[0], image_shape[1]
-        box = box.to(self.device)  # Move box to GPU
         
         x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
         box_width = x2 - x1
@@ -45,12 +44,12 @@ class ImageRectify:
     @torch.no_grad()
     def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, bool]]:
         boxes, detected_name = self.process_normal_yolo(image)
-        if isinstance(boxes, np.ndarray) and len(boxes) == 0:
+        if isinstance(boxes, torch.Tensor) and len(boxes) == 0:
             return image, False
 
-        box = torch.from_numpy(boxes[0]).float().to(self.device)
+        box = boxes[0].float()
         expanded_box = self.expand_box(box, image.shape, self.crop_expansion_factor)
-        x1, y1, x2, y2 = map(int, expanded_box.cpu().tolist())  # Move to CPU only for final numpy operations
+        x1, y1, x2, y2 = map(int, expanded_box.tolist())  # Convert to list directly
         
         cropped_image = image[y1:y2, x1:x2]
         is_front = detected_name == "front"
