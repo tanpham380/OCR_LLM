@@ -165,8 +165,7 @@ async def process_image(image_path: str, is_back_side: bool = False) -> Dict[str
             orientation_angle = 0
 
         # Read QR code
-        qr_code_text = (await asyncio.to_thread(detector_controller.read_QRcode, image))[0]
-
+        qr_code_text = await asyncio.to_thread(detector_controller.read_QRcode, image)
         # Process back side if needed
         if not is_front_side:
             image = crop_back_side(image)
