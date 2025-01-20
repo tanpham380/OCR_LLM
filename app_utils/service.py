@@ -78,10 +78,6 @@ async def scan(image_paths: List[str]) -> Dict[str, Any]:
         if not front_result or not back_result:
             raise ValueError("Could not determine front and back images.")
             
-        # Extract QR data
-        print(front_result)
-        print("---")
-        print(back_result)
         qr_data = await extract_qr_data(front_result, back_result)
         
         # Process images
