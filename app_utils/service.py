@@ -26,7 +26,7 @@ orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
 # api_base="http://127.0.0.1:2242/v1" ,
 
 #     generation_config = {
-#         "best_of": 2
+#         "best_of": 1
 #     }
 
 # )
@@ -63,13 +63,10 @@ async def scan(image_paths: List[str]) -> Dict[str, Any]:
             is_back_side = index == 1
             return await process_image(path, is_back_side)
 
-        # Process images with their corresponding side information
-        tasks = [
-            process_with_side(path, idx) 
-            for idx, path in enumerate(image_paths)
-        ]
-        
-        results = await asyncio.gather(*tasks)
+        results = []
+        for idx, path in enumerate(image_paths):
+            result = await process_with_side(path, idx)
+            results.append(result)
         
         front_result = next((r for r in results if r["mat_truoc"]), None)
         back_result = next((r for r in results if not r["mat_truoc"]), None)
