@@ -46,7 +46,7 @@ Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
     "nationality": "",
     "place_of_residence": "",
     "place_of_origin": "",
-    "date_of_expiration": "",
+    "date_of_expiry": "",
     "date_of_issue": ""
 }
 """
