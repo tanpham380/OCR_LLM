@@ -19,17 +19,36 @@ logger = get_logger(__name__)
 detector_controller = Detector()
 llm_controller = LlmController()
 orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
-ocr_controller = Llm_Vision_Exes(
-    api_key="1", 
-api_base="http://127.0.0.1:2242/v1")
+# ocr_controller = Llm_Vision_Exes(
+#     api_key="1", 
+# api_base="http://127.0.0.1:2242/v1" ,
 
+#     generation_config = {
+#         "best_of": 2
+#     }
+
+# )
+
+
+ocr_controller = Llm_Vision_Exes(
+    api_key="1234", 
+    api_base="http://172.18.249.58:8000/v1",
+    generation_config = {
+        "max_tokens": 768,
+        "best_of": 1
+    }
+)
+# 127.0.0.1:2242
 
 async def scan(image_paths: List[str]) -> dict:
     start_time = time.time()
 
     try:
-        # Process both images concurrently
-        results = await asyncio.gather(*[process_image(path) for path in image_paths])
+        # Process both images sequentially
+        results = []
+        for path in image_paths:
+            result = await process_image(path)
+            results.append(result)
         
         # Classify front and back results
         front_result = next((r for r in results if r["mat_truoc"]), None)
@@ -39,6 +58,9 @@ async def scan(image_paths: List[str]) -> dict:
             raise ValueError("Could not determine front and back images.")
             
         # Extract QR data
+        print(front_result)
+        print("---")
+        print(back_result)
         qr_data = await extract_qr_data(front_result, back_result)
         
         # Process images
@@ -60,7 +82,9 @@ async def scan(image_paths: List[str]) -> dict:
                 ocr_response = json.loads(ocr_response)
             except:
                 ocr_response = {}
-        ocr_response["qr_code"] = qr_data
+        ocr_response["qr_code"] = qr_data.get("qr_data" , "")
+        ocr_response["place_of_issue"] = qr_data.get("place_of_issue")
+        ocr_response["type_card"] = qr_data.get("type_card")
         ocr_text["content"] = ocr_response
         
         llm_response_with_time = {
@@ -78,6 +102,9 @@ async def scan(image_paths: List[str]) -> dict:
     except Exception as e:
         logger.error(f"An error occurred during the scanning process: {e}")
         raise e
+
+
+
 
 async def process_image(image_path: str , mat_sau = False) -> dict:
     try:
@@ -99,7 +126,7 @@ async def process_image(image_path: str , mat_sau = False) -> dict:
             image = crop_back_side(image)
         image_path = save_image(image, SAVE_IMAGES, print_path =False)
         return {
-            "qr_code_text": qr_code_text or " ",
+            "qr_code_text": qr_code_text,
             "mat_truoc": mat_truoc,
             "image_path": image_path
         }

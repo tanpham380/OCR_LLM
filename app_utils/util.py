@@ -113,9 +113,22 @@ def fix_name(text: str) -> str:
     
     return '|'.join(parts)
 
-async def extract_qr_data(front_result: dict, back_result: dict) -> str:
+def get_card_info(is_front: bool) -> dict:
+    """Get card type and issuer based on QR code location"""
+    if is_front:
+        return {
+            "place_of_issue": "Cục trưởng Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội",
+            "type_card": "Căn Cước Công Dân"
+        }
+    return {
+        "place_of_issue": "Bộ Công An",
+        "type_card": "Căn Cước"
+    }
+
+async def extract_qr_data(front_result: dict, back_result: dict) -> dict:
     """Extract and validate QR data from card images"""
     qr_data = front_result.get("qr_code_text")
+    is_front = True
     
     if isinstance(qr_data, list):
         qr_data = qr_data[0] if qr_data else None
@@ -124,12 +137,18 @@ async def extract_qr_data(front_result: dict, back_result: dict) -> str:
         qr_data = back_result.get("qr_code_text")
         if isinstance(qr_data, list):
             qr_data = qr_data[0] if qr_data else None
+        is_front = False
             
     if qr_data:
-        # Fix and log corrections
         qr_data = fix_name(qr_data)
         
-    return normalize_qr_data(qr_data) if qr_data else None
+    normalized_qr = normalize_qr_data(qr_data) if qr_data else None
+    card_info = get_card_info(is_front)
+    
+    return {
+        "qr_data": normalized_qr,
+        **card_info
+    }
 
 
 

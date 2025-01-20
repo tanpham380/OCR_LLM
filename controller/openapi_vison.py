@@ -23,67 +23,67 @@ GENERATION_CONFIG = {
     "top_k": 1,
     "max_tokens": 1024,
     "repetition_penalty": 1.1,
-    "best_of": 5,
+    "best_of": 3,
 }
+
+#     "id_number": {
+#         "vi": ["Số","Số định danh cá nhân"],
+#         "en": ["No.", "Personal Identification Number", "ID Number"],
+#         "format": "12 chữ số "
+#     },
+#     "fullname": {
+#         "vi": ["Họ và tên", "Họ, chữ đệm và tên khai sinh"],
+#         "en": ["Full name"],
+#     },
+#     "day_of_birth": {
+#         "vi": ["Ngày sinh", "Ngày, tháng, năm sinh"],
+#         "en": ["Date of birth"],
+#         "format": "DD/MM/YYYY"
+#     },
+#     "sex": {
+#         "vi": ["Giới tính"],
+#         "en": ["Sex"],
+#         "valid": ["Nam", "Nữ"]
+#     },
+#     "nationality": {
+#         "vi": ["Quốc tịch"],
+#         "en": ["Nationality"],
+#         "default": "Việt Nam"
+#     },
+#     "place_of_residence": {
+#         "vi": ["Nơi thường trú", "Nơi cư trú],
+#         "en": ["Place of residence"],
+#     },
+#     "place_of_origin": {
+#         "vi": ["Quê quán", "Nơi đăng kí khai sinh"],
+#         "en": ["Place of origin", "Place of birth"],
+#     },
+#     "date_of_expiration": {
+#         "vi": ["Ngày, tháng, năm", "Ngày,Tháng, Năm hết hạn"],
+#         "en": ["Date of expiry" , "Date, month, year:],
+#         "format": "DD/MM/YYYY"
+#     },
+#     "date_of_issue": {
+#         "vi": ["Ngày cấp", "Ngày,Tháng, Năm cấp"],
+#         "en": ["Date of issue"],
+#         "format": "DD/MM/YYYY"
+#     },
+#     "place_of_issue": {
+#         "vi": ["Nơi cấp", "Cơ quan cấp"],
+#         "en": ["Place of issue"],
+#     }
+# }
+# - Nơi cấp chỉ có 2 giá trị là "Cục trưởng Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội" hoặc "Bộ Công An".
+    # "place_of_issue": ""
 
 DEFAULT_PROMPT = """
 Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
 Bạn được cung cấp ảnh của căn cước công dân hợp pháp, không vi phạm. Có thể có nhiều phiên bản khác nhau của căn cước công dân.
-- Lưu ý là các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
+Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json theo qui tắc sau.
+- Các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
 - Không được bỏ sót bất kỳ thông tin chi tiết nào về địa chỉ quê quán hoặc địa chỉ thường trú hoặc ngày hết hạn của thẻ.
 - Bảo đảm các câu từ có dấu tiếng Việt là đầy đủ và chính xác.
-Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính xác thông tin trong ảnh thành json theo qui tắc sau.
-qui tắc:
-{
-    "id_number": {
-        "vi": ["Số","Số định danh cá nhân"],
-        "en": ["No.", "Personal Identification Number", "ID Number"],
-        "format": "12 chữ số "
-    },
-    "fullname": {
-        "vi": ["Họ và tên", "Họ, chữ đệm và tên khai sinh"],
-        "en": ["Full name"],
-    },
-    "day_of_birth": {
-        "vi": ["Ngày sinh", "Ngày, tháng, năm sinh"],
-        "en": ["Date of birth"],
-        "format": "DD/MM/YYYY"
-    },
-    "sex": {
-        "vi": ["Giới tính"],
-        "en": ["Sex"],
-        "valid": ["Nam", "Nữ"]
-    },
-    "nationality": {
-        "vi": ["Quốc tịch"],
-        "en": ["Nationality"],
-        "default": "Việt Nam"
-    },
-    "place_of_residence": {
-        "vi": ["Nơi thường trú", "Nơi cư trú],
-        "en": ["Place of residence"],
-    },
-    "place_of_origin": {
-        "vi": ["Quê quán", "Nơi đăng kí khai sinh"],
-        "en": ["Place of origin", "Place of birth"],
-    },
-    "date_of_expiration": {
-        "vi": ["Ngày, tháng, năm", "Ngày,Tháng, Năm hết hạn"],
-        "en": ["Date of expiry" , "Date, month, year:],
-        "format": "DD/MM/YYYY"
-    },
-    "date_of_issue": {
-        "vi": ["Ngày cấp", "Ngày,Tháng, Năm cấp"],
-        "en": ["Date of issue"],
-        "format": "DD/MM/YYYY"
-    },
-    "place_of_issue": {
-        "vi": ["Nơi cấp", "Cơ quan cấp"],
-        "en": ["Place of issue"],
-     "format": 'Cục Trưởng Cục Cảnh Sát Quản Lý Hành Chính Về Trật Tự Xã Hội' hoặc 'Bộ Công An' "
-    }
-}
-Trả lại kết quả OCR duy nhất với các trường sau:
+- Trả lại kết quả OCR duy nhất với các trường sau không thêm gì khác Ngoài:
 {
     "id_number": "",
     "fullname": "",
@@ -94,7 +94,6 @@ Trả lại kết quả OCR duy nhất với các trường sau:
     "place_of_origin": "", 
     "date_of_expiration": "",
     "date_of_issue": "",
-    "place_of_issue": ""
 }
 """
 
@@ -112,7 +111,37 @@ def clean_response_content(response_content: str) -> dict:
     return cleaned
 
 class OpenapiExes:
-    def __init__(self, api_key: str, api_base: str):
+    def __init__(self, api_key: str, api_base: str , generation_config: dict = None):
+        """Large Language Model Vision Executor for OCR tasks.
+    
+        This class provides an interface to process images using Vision-Language models
+        through OpenAI-compatible APIs.
+
+        Args:
+            api_key (str): API key for authentication
+            api_base (str): Base URL for the API endpoint
+            generation_config (dict, optional): Configuration parameters for text generation.
+                Supported parameters:
+                    - temperature (float): Controls randomness (0.0-1.0). Default: 0.01
+                    - top_p (float): Nucleus sampling parameter (0.0-1.0). Default: 0.1
+                    - min_p (float): Minimum probability for tokens. Default: 0.1
+                    - top_k (int): Number of highest probability tokens. Default: 1
+                    - max_tokens (int): Maximum tokens to generate. Default: 1024
+                    - repetition_penalty (float): Penalty for repeated tokens. Default: 1.1
+                    - best_of (int): Number of completion options. Default: 3
+
+        Example:
+            >>> config = {
+            ...     "temperature": 0.1,
+            ...     "max_tokens": 2048,
+            ...     "best_of": 3
+            ... }
+            >>> ocr = Llm_Vision_Exes(
+            ...     api_key="your-key",
+            ...     api_base="http://api.example.com",
+            ...     generation_config=config
+            ... )
+        """
         # Remove trailing slash if present
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
@@ -122,6 +151,7 @@ class OpenapiExes:
         )
         self._check_api_health()
         self.model_name = self.client.models.list().data[0].id
+        self.generation_config = generation_config or GENERATION_CONFIG
 
 
     def get_instant_api(self):
@@ -176,7 +206,7 @@ class OpenapiExes:
                         ],
                     }
                 ],
-                extra_body=GENERATION_CONFIG,  # Use updated config
+                extra_body=self.generation_config,  # Use updated config
             )
             # end_time = time.time()
             content = clean_response_content(response.choices[0].message.content)
@@ -229,7 +259,7 @@ class OpenapiExes:
                         "content": [{"type": "text", "text": prompt}, *image_contents],
                     }
                 ],
-                extra_body=GENERATION_CONFIG,  # Use updated config
+                extra_body=self.generation_config,  # Use updated config
             )
             end_time = time.time()
 
@@ -244,10 +274,41 @@ class OpenapiExes:
 
 
 class Llm_Vision_Exes:
-    def __init__(self, api_key: str, api_base: str):
+    def __init__(self, api_key: str, api_base: str ,  generation_config: dict = None):
+        """Large Language Model Vision Executor for OCR tasks.
+    
+        This class provides an interface to process images using Vision-Language models
+        through OpenAI-compatible APIs.
+
+        Args:
+            api_key (str): API key for authentication
+            api_base (str): Base URL for the API endpoint
+            generation_config (dict, optional): Configuration parameters for text generation.
+                Supported parameters:
+                    - temperature (float): Controls randomness (0.0-1.0). Default: 0.01
+                    - top_p (float): Nucleus sampling parameter (0.0-1.0). Default: 0.1
+                    - min_p (float): Minimum probability for tokens. Default: 0.1
+                    - top_k (int): Number of highest probability tokens. Default: 1
+                    - max_tokens (int): Maximum tokens to generate. Default: 1024
+                    - repetition_penalty (float): Penalty for repeated tokens. Default: 1.1
+                    - best_of (int): Number of completion options. Default: 3
+
+        Example:
+            >>> config = {
+            ...     "temperature": 0.1,
+            ...     "max_tokens": 2048,
+            ...     "best_of": 3
+            ... }
+            >>> ocr = Llm_Vision_Exes(
+            ...     api_key="your-key",
+            ...     api_base="http://api.example.com",
+            ...     generation_config=config
+            ... )
+        """
         self.api_key = api_key
         self.api_base = api_base
-        self.client = OpenapiExes(api_key=api_key, api_base=api_base)
+
+        self.client = OpenapiExes(api_key=api_key, api_base=api_base , generation_config = generation_config)
 
 
 

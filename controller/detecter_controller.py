@@ -68,7 +68,6 @@ class Detector:
         except Exception as e:
             raise e
             
-
     def read_QRcode(self, image: np.ndarray) -> str:
         """
         Reads and decodes the QR code from the provided image.
@@ -77,13 +76,17 @@ class Detector:
             image (np.ndarray): Image array containing the QR code.
 
         Returns:
-            str: Decoded QR code text or an empty string if reading fails.
+            str: Decoded QR code text, "detect but cannot read" if detected but unreadable,
+                or empty string if no detection.
         """
 
         def process_and_decode(img: np.ndarray, detect: Any = None) -> str:
             detections = detect if detect is not None else self.qreader.detect(img)
             if detections:
-                return self.qreader.decode(img, detections[0])
+                result = self.qreader.decode(img, detections[0])
+                if result:
+                    return result
+                return "detect"
             logger.info("No QR code detected in the image.")
             return ""
 
@@ -103,8 +106,9 @@ class Detector:
                     return text_qr
 
                 scaled_img = scale_up_img(enhanced_img, 480)
-                return process_and_decode(scaled_img) or ""
-            return "" 
+                result = process_and_decode(scaled_img)
+                return result if result else "detect"
+            return "not_detect" 
         except Exception as ex:
             logger.error(f"QR Code reading failed: {ex}")
-            return ""
+            return "not_detect"
