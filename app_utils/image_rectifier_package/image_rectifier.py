@@ -13,18 +13,18 @@ class ImageRectify:
     @staticmethod
     def load_yolov8_model(model_path: str) -> YOLO:
         model = YOLO(model_path)
-        model.conf = 0.5
-        model.iou = 0.5
+        model.conf = 0.3
+        model.iou = 0.3
         model.fuse()  # Fuse model layers for better GPU performance
         return model
 
     def process_normal_yolo(self, image: np.ndarray) -> Tuple[np.ndarray, str]:
         result = self.CORNER_MODEL(image, device=self.device)[0]
         if not result.boxes:
-            return image, "front"
+            return image, "front"  # Default to front for first image
         class_index = int(result.boxes.cls[0])
         detected_name = result.names[class_index]
-        boxes = result.boxes.xyxy.to(self.device)  # Keep boxes on the same device
+        boxes = result.boxes.xyxy.to(self.device)
         return boxes, detected_name
 
     def expand_box(self, box: torch.Tensor, image_shape: Tuple[int, int, int], crop_expansion_factor: float) -> torch.Tensor:
@@ -42,14 +42,26 @@ class ImageRectify:
         return torch.stack([x1_new, y1_new, x2_new, y2_new])
 
     @torch.no_grad()
-    def detect(self, image: np.ndarray) -> Optional[Tuple[np.ndarray, bool]]:
+    def detect(self, image: np.ndarray, is_second_image: bool = False) -> Tuple[np.ndarray, bool]:
+        """Detect and crop document from image.
+        
+        Args:
+            image: Input image array
+            is_second_image: Flag indicating if this is the second image
+                
+        Returns:
+            Tuple of (processed_image, is_front_side)
+        """
         boxes, detected_name = self.process_normal_yolo(image)
-        if isinstance(boxes, torch.Tensor) and len(boxes) == 0:
-            return image, False
-
+        
+        # Handle no detection case
+        if isinstance(boxes, np.ndarray) or (isinstance(boxes, torch.Tensor) and len(boxes) == 0):
+            return image, not is_second_image  # First image is front, second is back
+            
+        # Process detection
         box = boxes[0].float()
         expanded_box = self.expand_box(box, image.shape, self.crop_expansion_factor)
-        x1, y1, x2, y2 = map(int, expanded_box.tolist())  # Convert to list directly
+        x1, y1, x2, y2 = map(int, expanded_box.tolist())
         
         cropped_image = image[y1:y2, x1:x2]
         is_front = detected_name == "front"

@@ -83,7 +83,8 @@ Bạn phải thực hiện 01 (một) nhiệm vụ chính là bóc tách chính 
 - Các thông tin quê quán và dịa chỉ thường trú có thể nằm ở 2 dòng liên tiếp nhau. 
 - Không được bỏ sót bất kỳ thông tin chi tiết nào về địa chỉ quê quán hoặc địa chỉ thường trú hoặc ngày hết hạn của thẻ.
 - Bảo đảm các câu từ có dấu tiếng Việt là đầy đủ và chính xác.
-- Trả lại kết quả OCR duy nhất với các trường sau không thêm gì khác Ngoài:
+- Ngoài các tường thông tin sau đây, không thêm gì khác. 
+- Trả lại kết quả OCR duy nhất với các trường sau:
 {
     "id_number": "",
     "fullname": "",

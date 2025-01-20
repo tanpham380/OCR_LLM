@@ -44,7 +44,7 @@ class Detector:
         """Returns the QR reader instance."""
         return self.qreader
 
-    def detect(self, img_path: str) -> Optional[Tuple[np.ndarray, bool]]:
+    def detect(self, img: np.ndarray, is_second_image ) -> Optional[Tuple[np.ndarray, bool]]:
         """
         Detects and aligns the ID card from the provided image path.
 
@@ -58,10 +58,10 @@ class Detector:
             Exception: If the image loading or detection fails.
         """
         try:
-            img, _ = load_and_preprocess_image(img_path)
+            # img, _ = load_and_preprocess_image(img_path)
             if img is None:
                 raise Exception("Failed to load or preprocess the image.")
-            detections, is_front = self.card_detecter.detect(img)
+            detections, is_front = self.card_detecter.detect(img , is_second_image)
             if detections is None:
                 return img
             return detections, is_front

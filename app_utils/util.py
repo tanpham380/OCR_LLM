@@ -133,16 +133,21 @@ async def extract_qr_data(front_result: dict, back_result: dict) -> dict:
     if isinstance(qr_data, list):
         qr_data = qr_data[0] if qr_data else None
     
-    if not qr_data or (isinstance(qr_data, str) and qr_data.isspace()):
+    # Check if front QR is not detected
+    if qr_data == "not_detect" or not qr_data or (isinstance(qr_data, str) and qr_data.isspace()):
         qr_data = back_result.get("qr_code_text")
         if isinstance(qr_data, list):
             qr_data = qr_data[0] if qr_data else None
-        is_front = False
+        
+        # If back QR is detected, set is_front to False
+        if qr_data and qr_data != "not_detect":
+            is_front = False
+        # Otherwise keep is_front as True (default case)
             
-    if qr_data:
+    if qr_data and qr_data != "not_detect":
         qr_data = fix_name(qr_data)
         
-    normalized_qr = normalize_qr_data(qr_data) if qr_data else None
+    normalized_qr = normalize_qr_data(qr_data) if qr_data and qr_data != "not_detect" else None
     card_info = get_card_info(is_front)
     
     return {

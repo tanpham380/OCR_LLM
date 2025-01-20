@@ -1,10 +1,11 @@
 import asyncio
 import os
 import time
+import numpy as np
 import torch
-from typing import List
+from typing import Any, Dict, List
 from quart import g, url_for
-from app_utils.file_handler import crop_back_side, load_image, merge_images_vertical, save_image, scale_up_img
+from app_utils.file_handler import crop_back_side, load_and_preprocess_image, load_image, merge_images_vertical, save_image, scale_up_img
 from app_utils.logging import get_logger
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
 from app_utils.util import extract_qr_data, rotate_image
@@ -13,6 +14,7 @@ from controller.detecter_controller import Detector
 from controller.openapi_vison import Llm_Vision_Exes
 # from controller.vllm_qwen_old import VLLM_Exes
 from controller.llm_controller import LlmController
+from contextlib import asynccontextmanager
 
 logger = get_logger(__name__)
 
@@ -28,31 +30,50 @@ orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
 #     }
 
 # )
-
+@asynccontextmanager
+async def manage_cuda_memory():
+    try:
+        yield
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 ocr_controller = Llm_Vision_Exes(
     api_key="1234", 
     api_base="http://172.18.249.58:8000/v1",
     generation_config = {
-        "max_tokens": 768,
+        "max_tokens": 512,
         "best_of": 1
     }
 )
 # 127.0.0.1:2242
 
-async def scan(image_paths: List[str]) -> dict:
+
+async def scan(image_paths: List[str]) -> Dict[str, Any]:
     start_time = time.time()
 
     try:
-        # Process both images sequentially
-        results = []
-        for path in image_paths:
-            result = await process_image(path)
-            results.append(result)
+        if not image_paths:
+            raise ValueError("No image paths provided")
         
-        # Classify front and back results
+        if len(image_paths) > 2:
+            raise ValueError("Maximum 2 images can be processed")
+
+        async def process_with_side(path: str, index: int) -> Dict[str, Any]:
+            is_back_side = index == 1
+            return await process_image(path, is_back_side)
+
+        # Process images with their corresponding side information
+        tasks = [
+            process_with_side(path, idx) 
+            for idx, path in enumerate(image_paths)
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        
         front_result = next((r for r in results if r["mat_truoc"]), None)
         back_result = next((r for r in results if not r["mat_truoc"]), None)
+
 
         if not front_result or not back_result:
             raise ValueError("Could not determine front and back images.")
@@ -106,32 +127,62 @@ async def scan(image_paths: List[str]) -> dict:
 
 
 
-async def process_image(image_path: str , mat_sau = False) -> dict:
+async def process_image(image_path: str, is_back_side: bool = False) -> Dict[str, any]:
+    """Process an image and extract QR code information."""
     try:
-        image, mat_truoc = await asyncio.to_thread(detector_controller.detect, image_path)
+        # Load and preprocess image
+        img, _ = load_and_preprocess_image(image_path)
+        img = scale_up_img(img, target_size=480)
+
+        # Detect document in image
+        async with manage_cuda_memory():
+            image, is_front_side = await asyncio.to_thread(
+                detector_controller.detect, 
+                img, 
+                is_back_side
+            )
+            # image, is_front_side = await asyncio.to_thread(detector_controller.detect, img)
+            
         if image is None:
-            raise ValueError(f"Failed to detect image at {image_path}.")
-        if mat_sau :
-            mat_truoc = False
-        orientation_res, _ = await asyncio.to_thread(orientation_engine, image)
-        orientation_res = float(orientation_res)
-        if orientation_res != 0:
-            image = rotate_image(image, orientation_res)
-        image = scale_up_img(image, 480)
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        qr_code_text_task = asyncio.to_thread(detector_controller.read_QRcode, image)
-        qr_code_text = await asyncio.gather(qr_code_text_task)
-        if not mat_truoc:
+            raise ValueError(f"Failed to detect document in image: {image_path}")
+
+        # Override side detection if explicitly processing back side
+        if is_back_side:
+            is_front_side = False
+
+        # Handle image orientation with proper type checking
+        try:
+            orientation_result = await asyncio.to_thread(orientation_engine, image)
+            orientation_angle = orientation_result[0]
+            if isinstance(orientation_angle, (np.ndarray, list)):
+                orientation_angle = orientation_angle[0]
+            orientation_angle = float(orientation_angle)
+            
+            if orientation_angle != 0:
+                image = rotate_image(image, orientation_angle)
+        except (IndexError, TypeError, ValueError) as e:
+            logger.warning(f"Failed to process orientation, using original image: {e}")
+            orientation_angle = 0
+
+        # Read QR code
+        qr_code_text = (await asyncio.to_thread(detector_controller.read_QRcode, image))[0]
+
+        # Process back side if needed
+        if not is_front_side:
             image = crop_back_side(image)
-        image_path = save_image(image, SAVE_IMAGES, print_path =False)
+
+        # Save processed image
+        output_path = save_image(image, SAVE_IMAGES, print_path=False)
+
         return {
             "qr_code_text": qr_code_text,
-            "mat_truoc": mat_truoc,
-            "image_path": image_path
+            "mat_truoc": is_front_side,
+            "image_path": output_path
         }
+
+    except ValueError as e:
+        logger.error(f"Validation error processing image {image_path}: {str(e)}")
+        raise
     except Exception as e:
-        logger.error(f"Error processing image: {e}")
-        raise e
-
-
+        logger.error(f"Error processing image {image_path}: {str(e)}")
+        raise 
