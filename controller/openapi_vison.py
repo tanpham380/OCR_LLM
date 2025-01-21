@@ -22,9 +22,8 @@ GENERATION_CONFIG = {
     "best_of": 3,
 }
 
-# Hằng số `SYSTEM_PROMPT` có thể tùy chỉnh nội dung tùy theo nhu cầu thực tế.
 SYSTEM_PROMPT = """Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
-Chỉ trả lời bằng đúng cấu trúc JSON được yêu cầu. Không cung cấp bất kỳ giải thích hay nội dung nào khác ngoài JSON.
+Chỉ trả lời bằng đúng cấu trúc nghiệm vụ được yêu cầu. Không cung cấp bất kỳ giải thích hay nội dung nào khác ngoài JSON.
 """
 
 DEFAULT_PROMPT = """
@@ -110,9 +109,9 @@ class OpenapiExes:
         except Exception as e:
             raise ConnectionError(f"Health check failed: {str(e)}")
 
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
-    )
+    # @retry(
+    #     stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    # )
     def analyze_image(self, image_base64: str, prompt: str) -> Dict:
         """Phân tích 1 ảnh duy nhất, kèm system prompt và user prompt."""
         try:
@@ -132,8 +131,9 @@ class OpenapiExes:
                     }
                 ],
                 extra_body=self.generation_config,  # Dùng config đã thiết lập
+                timeout=45
             )
-
+            print(response.choices[0].message.content)
             content = clean_response_content(response.choices[0].message.content)
             return {
                 "content": content,

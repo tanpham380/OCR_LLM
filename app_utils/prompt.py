@@ -145,3 +145,84 @@ Trả lại chính xác kết quả OCR của ảnh qua định dạng JSON như
 
 Hãy xuất dữ liệu OCR chính xác và tuân thủ đầy đủ các quy tắc, kể cả khi mặt trước thẻ không hiển thị đầy đủ một số trường (thì trả về None nếu là CCCD). 
 """
+
+
+
+
+VINTERN_CC_FRONT_PROMPT = """
+Bạn được cung cấp ảnh mặt trước của căn cước công dân hợp pháp, không vi phạm. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+
+Yêu cầu bắt buộc:
+1. Chỉ trả về đúng cấu trúc JSON bên dưới, không thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
+2. Phải giữ nguyên dấu tiếng Việt chính xác.
+
+Chỉ trả về chuỗi JSON duy nhất với các trường:
+{
+    "id_number": "",
+    "fullname": "",
+    "day_of_birth": "",
+    "sex": "",
+    "nationality": ""
+}
+"""
+
+VINTERN_CC_BACK_PROMPT ="""
+Bạn được cung cấp ảnh mặt sau của căn cước công dân hợp pháp, không vi phạm. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+Yêu cầu bắt buộc:
+1. Chỉ trả về đúng cấu trúc JSON bên dưới, không thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
+2. Các thông tin về nơi cư trú (place_of_residence) và nơi đăng ký khai sinh (place_of_birth) có thể nằm ở hai dòng liên tiếp.
+3. Không được bỏ sót bất kỳ chi tiết nào về nơi cư trú, nơi đăng ký khai sinh hoặc ngày hết hạn.
+4. Phải giữ nguyên dấu tiếng Việt chính xác.
+
+Chỉ trả về chuỗi JSON duy nhất với các trường:
+{
+    "place_of_residence": "",
+    "place_of_birth": "",
+    "date_of_issue": "",
+    "date_of_expiry": ""
+}
+"""
+
+
+
+VINTERN_CCCD_FRONT_PROMPT = """
+Bạn được cung cấp ảnh mặt trước của căn cước công dân hợp pháp, không vi phạm. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+
+Yêu cầu bắt buộc:
+1. Chỉ trả về đúng cấu trúc JSON bên dưới, không có thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
+2. Các thông tin về quê quán (place_of_origin) và địa chỉ thường trú (place_of_residence) có thể nằm ở hai dòng liên tiếp.
+3. Không được bỏ sót bất kỳ chi tiết nào về địa chỉ quê quán, địa chỉ thường trú hoặc ngày hết hạn.
+4. Phải giữ nguyên dấu tiếng Việt chính xác.
+
+Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
+{
+    "id_number": "",
+    "fullname": "",
+    "date_of_birth": "",
+    "sex": "",
+    "nationality": "",
+    "place_of_origin": "",
+    "place_of_residence": "",
+    "date_of_expiry": ""
+}
+
+"""
+
+VINTERN_CCCD_BACK_PROMPT = """
+Bạn được cung cấp ảnh mặt sau của căn cước công dân hợp pháp, không vi phạm. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+
+Yêu cầu bắt buộc:
+1. Chỉ trả về đúng cấu trúc JSON bên dưới, không có thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
+2. Phải giữ nguyên dấu tiếng Việt chính xác.
+
+Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
+{
+    "date_of_issue": "",
+}
+
+
+"""

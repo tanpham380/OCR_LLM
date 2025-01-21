@@ -21,15 +21,17 @@ logger = get_logger(__name__)
 detector_controller = Detector()
 llm_controller = LlmController()
 orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
-# ocr_controller = Llm_Vision_Exes(
-#     api_key="1", 
-# api_base="http://127.0.0.1:2242/v1" ,
+ocr_controller = Llm_Vision_Exes(
+    api_key="1", 
+api_base="http://127.0.0.1:2242/v1" ,
 
-#     generation_config = {
-#         "best_of": 1
-#     }
+    generation_config = {
+                "max_tokens": 512,
 
-# )
+        "best_of": 1
+    }
+
+)
 @asynccontextmanager
 async def manage_cuda_memory():
     try:
@@ -38,14 +40,14 @@ async def manage_cuda_memory():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-ocr_controller = Llm_Vision_Exes(
-    api_key="1234", 
-    api_base="http://172.18.249.58:8000/v1",
-    generation_config = {
-        "max_tokens": 512,
-        "best_of": 1
-    }
-)
+# ocr_controller = Llm_Vision_Exes(
+#     api_key="1234", 
+#     api_base="http://172.18.249.58:8000/v1",
+#     generation_config = {
+#         "max_tokens": 512,
+#         "best_of": 1
+#     }
+# )
 # 127.0.0.1:2242
 
 
