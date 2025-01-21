@@ -133,11 +133,8 @@ class OpenapiExes:
                 extra_body=self.generation_config,  # Dùng config đã thiết lập
                 timeout=45
             )
-            print(response.choices[0].message.content)
-            content = clean_response_content(response.choices[0].message.content)
-            return {
-                "content": content,
-            }
+            
+            return response.choices[0].message.content
         except Exception as e:
             raise ValueError(f"Analysis failed: {str(e)}")
 

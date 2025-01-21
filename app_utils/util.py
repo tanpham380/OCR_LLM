@@ -1,7 +1,8 @@
+import ast
 import datetime
 import json
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 import numpy as np
 import cv2
 import torch
@@ -193,4 +194,49 @@ def rotate_image(img: np.ndarray, angle: float) -> np.ndarray:
     rotated_img = cv2.warpAffine(img, rotation_mat, (bound_w, bound_h))
     return rotated_img
 
+def format_llm_content(content: Union[str, Dict]) -> Dict:
+    try:
+        if not content:
+            return {"error": "Empty content received"}
 
+        if isinstance(content, dict):
+            return content
+
+        if isinstance(content, str):
+            cleaned_content = content.strip()
+            
+            # Convert Python dict string to JSON format
+            if cleaned_content.startswith("{'") and cleaned_content.endswith("'}"):
+                cleaned_content = cleaned_content.replace("'", '"')
+            
+            # Handle markdown formatted JSON
+            if '```json' in cleaned_content:
+                start = cleaned_content.find('```json\n') + 7
+                end = cleaned_content.rfind('```')
+                if end == -1:
+                    end = len(cleaned_content)
+                cleaned_content = cleaned_content[start:end].strip()
+
+            # Try parsing the cleaned content
+            try:
+                parsed = json.loads(cleaned_content)
+                if isinstance(parsed, dict):
+                    return parsed
+                if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+                    return parsed[0]
+            except json.JSONDecodeError:
+                # Try eval for Python dict strings as last resort
+                try:
+                    if cleaned_content.startswith('{') and cleaned_content.endswith('}'):
+                        parsed = ast.literal_eval(cleaned_content)
+                        if isinstance(parsed, dict):
+                            return parsed
+                except (ValueError, SyntaxError):
+                    pass
+
+            return {"error": "No valid JSON found in content", "original": content}
+
+        return {"text": str(content)}
+
+    except Exception as e:
+        return {"error": f"Processing error: {str(e)}", "original": content}

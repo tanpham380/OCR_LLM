@@ -1,11 +1,9 @@
 import asyncio
-import json
-import os
 from pathlib import Path
 import time
 import numpy as np
 import torch
-from typing import Any, Dict, List, Tuple, Optional, Union
+from typing import Any, Dict, List, Tuple
 from quart import url_for
 from app_utils.file_handler import (
     crop_back_side, load_and_preprocess_image, 
@@ -17,7 +15,7 @@ from app_utils.prompt import (
     VINTERN_CCCD_BACK_PROMPT, VINTERN_CCCD_FRONT_PROMPT
 )
 from app_utils.rapid_orientation_package.rapid_orientation import RapidOrientation
-from app_utils.util import extract_qr_data, rotate_image
+from app_utils.util import extract_qr_data, format_llm_content, rotate_image
 from config import ORIENTATION_MODEL_PATH, SAVE_IMAGES
 from controller.detecter_controller import Detector
 from controller.openapi_vison import Llm_Vision_Exes
@@ -29,16 +27,16 @@ class CardOCRService:
     def __init__(self):
         self.detector = Detector()
         self.orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
-        self.ocr_controller1 = Llm_Vision_Exes(
+        self.ocr_controller = Llm_Vision_Exes(
             api_key="1234",
-            api_base="http://172.18.249.58:8000/v1",
+            api_base="http://172.18.249.58:80/v1",
             generation_config={"best_of": 1}
         )
-        self.ocr_controller2 = Llm_Vision_Exes(
-            api_key="1234", 
-            api_base="http://172.18.249.58:8001/v1",
-            generation_config={"best_of": 1}
-        )
+        # self.ocr_controller2 = Llm_Vision_Exes(
+        #     api_key="1234", 
+        #     api_base="http://172.18.249.58:80/v1",
+        #     generation_config={"best_of": 1}
+        # )
 
     @asynccontextmanager
     async def manage_cuda_memory(self):
@@ -58,35 +56,10 @@ class CardOCRService:
         return VINTERN_CCCD_FRONT_PROMPT, VINTERN_CCCD_BACK_PROMPT
 
     def process_ocr(self, image: np.ndarray, prompt: str, controller: Llm_Vision_Exes) -> Dict:
-            try:
-                result = controller.generate(image, prompt)
-                content = result.get("content", "")
-                formatted_content = self._format_llm_content(content)
-                return formatted_content
-            except Exception as e:
-                logger.error(f"OCR processing error: {e}")
-                return {"error": str(e)}
+        result = controller.generate(image, prompt)
+        return format_llm_content(result)
+
             
-    def _format_llm_content(self, content: Union[str, Dict]) -> Dict:
-            try:
-                # If content is already a dict, return it
-                if isinstance(content, dict):
-                    return content
-                    
-                # If content is string, try to parse as JSON
-                if isinstance(content, str):
-                    try:
-                        return json.loads(content)
-                    except json.JSONDecodeError:
-                        # If not JSON, wrap in dict
-                        return {"text": content}
-                        
-                # Handle other types
-                return {"text": str(content)}
-                
-            except Exception as e:
-                logger.error(f"Error formatting LLM content: {e}")
-                return {"error": str(e)}
 
     async def process_image(self, image_path: str, is_back_side: bool = False) -> Dict[str, Any]:
         try:
@@ -162,8 +135,8 @@ class CardOCRService:
             back_img = load_image(back_result["image_path"])
 
             front_ocr, back_ocr = await asyncio.gather(
-                asyncio.to_thread(self.process_ocr, front_img, prompt_front, self.ocr_controller1),
-                asyncio.to_thread(self.process_ocr, back_img, prompt_back, self.ocr_controller2)
+                asyncio.to_thread(self.process_ocr, front_img, prompt_front, self.ocr_controller),
+                asyncio.to_thread(self.process_ocr, back_img, prompt_back, self.ocr_controller)
             )
 
             # Validate OCR results
@@ -182,12 +155,10 @@ class CardOCRService:
                 raise ValueError("OCR failed for both front and back sides")
 
             response = {
-                "data": {
                     "llm_response": ocr_text,
                     "mat_truoc": url_for('static', filename=f'images/{Path(front_result["image_path"]).name}', _external=True),
                     "mat_sau": url_for('static', filename=f'images/{Path(back_result["image_path"]).name}', _external=True),
                     "processing_time_s": round(time.time() - start_time, 2)
-                }
             }
 
             return response
