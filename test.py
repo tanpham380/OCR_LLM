@@ -19,7 +19,6 @@ def parse_llm_response(content_str: str):
             
     try:
         # Debug original content
-        print(f"Original content: {content_str}")
         
         # Basic cleaning
         content_str = content_str.strip()
@@ -59,7 +58,6 @@ def parse_llm_response(content_str: str):
         return {"error": "Failed to parse JSON after all attempts"}
         
     except Exception as e:
-        print(f"Parse error: {str(e)}")
         return {"error": f"Parsing error: {str(e)}"}
 
 ocr_controller = Llm_Vision_Exes(
@@ -106,15 +104,11 @@ async def process_images(front_image, back_image):
     )
     
     processing_time = round(time.time() - start_time, 2)
-    print(f"Processing time: {processing_time}s")
 
-    # Ta sẽ gộp tất cả các trường (key) của front_result và back_result
-    # vào chung 1 dict "information"
+
     combined_information = {}
-    # Nếu front_result là dict, update vào combined_information
     if isinstance(front_result, dict):
         combined_information.update(front_result)
-    # Nếu back_result là dict, update tiếp vào combined_information
     if isinstance(back_result, dict):
         combined_information.update(back_result)
 

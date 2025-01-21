@@ -162,7 +162,7 @@ Chỉ trả về chuỗi JSON duy nhất với các trường:
     "id_number": "",
     "fullname": "",
     "day_of_birth": "",
-    "sex": "",
+    "sex": "Nam hoặc Nữ",
     "nationality": ""
 }
 """
@@ -202,7 +202,7 @@ Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
     "id_number": "",
     "fullname": "",
     "date_of_birth": "",
-    "sex": "",
+    "sex": "Nam hoặc Nữ",
     "nationality": "",
     "place_of_origin": "",
     "place_of_residence": "",

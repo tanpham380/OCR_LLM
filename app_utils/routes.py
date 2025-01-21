@@ -9,7 +9,7 @@ import torch
 from app_utils.file_handler import save_image, secure_file
 from app_utils.logging import get_logger
 from app_utils.middleware import require_api_key
-from app_utils.service import scan
+from app_utils.service import CardOCRService
 from config import SAVE_IMAGES
 from PIL import Image
 
@@ -117,7 +117,7 @@ async def get_ocr_full_results(ocr_result_id):
         logger.error(f"Error retrieving full OCR results: {e}")
         return jsonify({"successful": False, "message": str(e), "data": None}), 500
 
-
+ocr_service = CardOCRService()
 @blueprint.route("/api/v1/scan_cccd", methods=['POST'])
 @require_api_key
 async def scan_cccd():
@@ -136,7 +136,7 @@ async def scan_cccd():
             for i in list_path :
                 if "not allowed" in i:
                     return jsonify({"successful": False, "message": "File extension not allowed", "data": None}), 400
-            llm_response = await scan(list_path)
+            llm_response = await ocr_service.scan(list_path)
             return jsonify({"successful": True, "message": "OCR performed successfully", "data": llm_response}), 200
         else:
             return jsonify({"successful": False, "message": "No image found in the request", "data": None}), 400
