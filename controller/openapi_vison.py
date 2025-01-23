@@ -12,6 +12,15 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 import requests
 
+GENERATION_CONFIG = {
+    "temperature": 0.01,
+    "top_p": 0.1,
+    "min_p": 0.1,
+    "top_k": 1,
+    "max_tokens": 512,
+    "repetition_penalty": 1.1,
+    "best_of": 3,
+}
 # GENERATION_CONFIG = {
 #     "temperature": 0.01,
 #     "top_p": 0.1,
@@ -21,16 +30,7 @@ import requests
 #     "repetition_penalty": 1.1,
 #     "best_of": 3,
 # }
-GENERATION_CONFIG = {
-    "temperature": 0.01,
-    "top_p": 0,
-    "min_p": 0.1,
-    "top_k": 1,
-    "max_tokens": 512,
-    "repetition_penalty": 1,
-    "best_of": 1,
-}
-SYSTEM_PROMPT = """Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) dấu tiếng Việt chính xác từ hình ảnh.
+SYSTEM_PROMPT = """Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) từ hình ảnh.
 Chỉ trả lời bằng đúng cấu trúc nghiệm vụ được yêu cầu. Không cung cấp bất kỳ giải thích hay nội dung nào khác ngoài JSON.
 """
 
