@@ -26,9 +26,9 @@ GENERATION_CONFIG = {
     "top_p": 0,
     "min_p": 0.1,
     "top_k": 1,
-    "max_tokens": 1024,
-    "repetition_penalty": 1.1,
-    "best_of": 3,
+    "max_tokens": 512,
+    "repetition_penalty": 1,
+    "best_of": 1,
 }
 SYSTEM_PROMPT = """Bạn là một hệ thống AI đẳng cấp thế giới hỗ trợ nhận diện ký tự quang học (Optical Character Recognition - OCR) dấu tiếng Việt chính xác từ hình ảnh.
 Chỉ trả lời bằng đúng cấu trúc nghiệm vụ được yêu cầu. Không cung cấp bất kỳ giải thích hay nội dung nào khác ngoài JSON.
