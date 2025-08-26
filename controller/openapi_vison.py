@@ -81,8 +81,9 @@ class OpenapiExes:
             api_key=self.api_key,
             base_url=self.api_base,
         )
-        self._check_api_health()
-        self.model_name = self.client.models.list().data[0].id
+        # self._check_api_health()
+        self.model_name = "5CD-AI/Vintern-1B-v3_5"
+#self.client.models.list().data[0].id
         self.generation_config = generation_config or GENERATION_CONFIG
 
     def get_instant_api(self):
