@@ -52,6 +52,8 @@ Image files (adjust as needed)
 
 # Log files
 *.log
+*.log.*
+logs/
 
 # Temporary files
 *.tmp
