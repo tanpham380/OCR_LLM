@@ -145,19 +145,31 @@ Trả lại chính xác kết quả OCR của ảnh qua định dạng JSON như
 
 Hãy xuất dữ liệu OCR chính xác và tuân thủ đầy đủ các quy tắc, kể cả khi mặt trước thẻ không hiển thị đầy đủ một số trường (thì trả về None nếu là CCCD). 
 """
-
-
+# ============================================================
+# VINTERN OCR PROMPTS 2025
+# Dành cho bóc tách thông tin thẻ Căn Cước (mới) và CCCD (gắn chip cũ)
+# Lưu ý: ảnh có thể là bản màu, trắng đen hoặc scan photocopy
+# ============================================================
 
 
 VINTERN_CC_FRONT_PROMPT = """
-Bạn được cung cấp ảnh mặt trước của căn cước công dân hợp pháp, không vi phạm. 
-Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+Bạn được cung cấp ảnh mặt trước của thẻ **Căn cước** Việt Nam (phiên bản mới, phát hành sau năm 2024) hợp pháp. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin trên ảnh và trả về kết quả JSON duy nhất.
 
-Yêu cầu bắt buộc:
+📸 Lưu ý:
+Ảnh có thể là bản **màu, trắng đen hoặc scan photocopy**.
+Trong trường hợp ảnh mờ, nhòe hoặc mất dấu tiếng Việt:
+- Hãy **suy luận hợp lý từ ngữ cảnh** (ví dụ “Diêm Điền” thay vì “Diêm Điển”, “Phú Thuận” thay vì “Phú Thân”).
+- Ưu tiên đọc nội dung theo **vị trí bố cục** của thẻ thay vì chỉ dựa vào ký tự riêng lẻ.
+- Phải **giữ nguyên chính tả và dấu tiếng Việt chính xác tuyệt đối** trong kết quả.
+
+🎯 Yêu cầu bắt buộc:
 1. Chỉ trả về đúng cấu trúc JSON bên dưới, không thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
-2. Phải giữ nguyên dấu tiếng Việt chính xác.
+2. Các thông tin như họ tên, ngày sinh, giới tính, quốc tịch phải được bóc tách chính xác theo bố cục thực tế của thẻ.
+3. Nếu phát hiện giới tính bị nhầm do OCR (ví dụ đọc “NAM” từ chữ “TPHCM”), hãy ưu tiên giá trị nằm trong vùng “Giới tính”.
+4. Nếu có ký tự đặc biệt (như “.” hoặc “,”) trong họ tên, không được tự ý loại bỏ.
 
-Chỉ trả về chuỗi JSON duy nhất với các trường:
+Trả về duy nhất một chuỗi JSON với các trường:
 {
     "id_number": "",
     "fullname": "",
@@ -167,16 +179,27 @@ Chỉ trả về chuỗi JSON duy nhất với các trường:
 }
 """
 
-VINTERN_CC_BACK_PROMPT ="""
-Bạn được cung cấp ảnh mặt sau của căn cước công dân hợp pháp, không vi phạm. 
-Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
-Yêu cầu bắt buộc:
-1. Chỉ trả về đúng cấu trúc JSON bên dưới, không thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
-2. Các thông tin về nơi cư trú (place_of_residence) và nơi đăng ký khai sinh (place_of_birth) có thể nằm ở hai dòng liên tiếp.
-3. Không được bỏ sót bất kỳ chi tiết nào về nơi cư trú, nơi đăng ký khai sinh hoặc ngày hết hạn.
-4. Phải giữ nguyên dấu tiếng Việt chính xác.
 
-Chỉ trả về chuỗi JSON duy nhất với các trường:
+
+VINTERN_CC_BACK_PROMPT = """
+Bạn được cung cấp ảnh mặt sau của thẻ **Căn cước** Việt Nam (phiên bản mới, phát hành sau năm 2024) hợp pháp. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin và trả về kết quả JSON duy nhất.
+
+📸 Lưu ý:
+Ảnh có thể là bản **màu, trắng đen hoặc scan photocopy**.
+Nếu ảnh bị mờ hoặc OCR chia dòng sai:
+- Hãy **ghép nối hợp lý các dòng liên quan đến địa chỉ hoặc ngày tháng**.
+- Duy trì đầy đủ dấu tiếng Việt chính xác.
+
+🎯 Yêu cầu bắt buộc:
+1. Chỉ trả về đúng cấu trúc JSON bên dưới, không có thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
+2. Các thông tin về nơi cư trú (place_of_residence) và nơi đăng ký khai sinh (place_of_birth) có thể nằm ở hai hoặc nhiều dòng liên tiếp.
+   ➜ Nếu thấy địa chỉ bị chia dòng (ví dụ dòng đầu có số nhà, dòng sau có tên đường, phường, quận, tỉnh),
+      hãy **ghép tất cả các dòng liên quan lại thành một chuỗi duy nhất**.
+3. Không được bỏ sót bất kỳ chi tiết nào về nơi cư trú, nơi sinh hoặc ngày cấp.
+4. Nếu ngày cấp bị OCR đọc thiếu năm (ví dụ chỉ còn “201”), hãy suy luận hợp lý dựa trên bố cục và định dạng chuẩn (dd/mm/yyyy).
+
+Trả về duy nhất một chuỗi JSON với các trường:
 {
     "place_of_residence": "",
     "place_of_birth": "",
@@ -188,16 +211,25 @@ Chỉ trả về chuỗi JSON duy nhất với các trường:
 
 
 VINTERN_CCCD_FRONT_PROMPT = """
-Bạn được cung cấp ảnh mặt trước của căn cước công dân hợp pháp, không vi phạm. 
-Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+Bạn được cung cấp ảnh mặt trước của thẻ **Căn cước công dân** (phiên bản gắn chip, phát hành trước năm 2024) hợp pháp. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin và trả về kết quả JSON duy nhất.
 
-Yêu cầu bắt buộc:
+📸 Lưu ý:
+Ảnh có thể là bản **màu, trắng đen hoặc scan photocopy**.
+Nếu ảnh bị mờ, mất nét hoặc chữ nhạt:
+- Hãy **suy luận hợp lý từ ngữ cảnh và vị trí bố cục**.
+- Giữ nguyên chính tả, dấu tiếng Việt và định dạng ngày tháng chính xác.
+
+🎯 Yêu cầu bắt buộc:
 1. Chỉ trả về đúng cấu trúc JSON bên dưới, không có thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
-2. Các thông tin về quê quán (place_of_origin) và địa chỉ thường trú (place_of_residence) có thể nằm ở hai dòng liên tiếp.
-3. Không được bỏ sót bất kỳ chi tiết nào về địa chỉ quê quán, địa chỉ thường trú hoặc ngày hết hạn.
-4. Phải giữ nguyên dấu tiếng Việt chính xác.
+2. Các thông tin về quê quán (place_of_origin) và địa chỉ thường trú (place_of_residence) có thể nằm ở hai hoặc nhiều dòng liên tiếp.
+   ➜ Nếu thấy địa chỉ bị chia dòng (ví dụ dòng đầu có số nhà hoặc “28/10,”, dòng sau có tên đường hoặc phường, quận, thành phố),
+      hãy **ghép tất cả các dòng liên quan lại thành một chuỗi duy nhất**.
+3. Không được bỏ sót bất kỳ chi tiết nào về địa chỉ, ngày hết hạn hoặc giới tính.
+4. Nếu có nghi ngờ về giới tính (ví dụ đọc thấy “NAM” trong chữ “TPHCM”), hãy ưu tiên giá trị nằm ở vùng “Giới tính”.
+5. Nếu thấy năm hết hạn nhỏ hơn năm sinh + 15, hãy coi đó là lỗi OCR và ưu tiên năm hợp lý hơn (ví dụ 2034 thay vì 2024).
 
-Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
+Trả về duy nhất một chuỗi JSON với các trường:
 {
     "id_number": "",
     "fullname": "",
@@ -208,21 +240,28 @@ Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
     "place_of_residence": "",
     "date_of_expiry": ""
 }
-
 """
 
+
+
 VINTERN_CCCD_BACK_PROMPT = """
-Bạn được cung cấp ảnh mặt sau của căn cước công dân hợp pháp, không vi phạm. 
-Nhiệm vụ của bạn là bóc tách chính xác thông tin trong ảnh và trả về kết quả dưới dạng JSON.
+Bạn được cung cấp ảnh mặt sau của thẻ **Căn cước công dân** (phiên bản gắn chip, phát hành trước năm 2024) hợp pháp. 
+Nhiệm vụ của bạn là bóc tách chính xác thông tin và trả về kết quả JSON duy nhất.
 
-Yêu cầu bắt buộc:
+📸 Lưu ý:
+Ảnh có thể là bản **màu, trắng đen hoặc scan photocopy**.
+Nếu các dòng bị tách rời hoặc mất một phần ký tự:
+- Hãy **ghép nối hợp lý các cụm ngày tháng hoặc vùng chữ liền kề**.
+- Giữ nguyên chính tả, dấu tiếng Việt và bố cục dữ liệu chính xác.
+
+🎯 Yêu cầu bắt buộc:
 1. Chỉ trả về đúng cấu trúc JSON bên dưới, không có thêm bất kỳ văn bản, mô tả hay ký tự nào khác ngoài JSON.
-2. Phải giữ nguyên dấu tiếng Việt chính xác.
+2. Các thông tin về nơi cấp, ngày cấp, hoặc ngày hết hạn có thể nằm ở nhiều dòng khác nhau.
+   ➜ Nếu thấy dòng “Ngày cấp” hoặc “Ngày hết hạn” bị OCR tách riêng, hãy **ghép lại đầy đủ cả cụm ngày/tháng/năm**.
+3. Không được bỏ sót bất kỳ chi tiết nào về ngày cấp hoặc ngày hết hạn.
 
-Chỉ trả về chuỗi JSON duy nhất, có đúng các trường:
+Trả về duy nhất một chuỗi JSON với các trường:
 {
     "date_of_issue": "",
 }
-
-
 """

@@ -28,8 +28,8 @@ class CardOCRService:
         self.detector = Detector()
         self.orientation_engine = RapidOrientation(ORIENTATION_MODEL_PATH)
         self.ocr_controller = Llm_Vision_Exes(
-            api_key="gpustack_64458d93fe104d0e_279750233d2b470e222d8cf1c03ac350",
-            api_base="http://interface-rag.hocvienaau.edu.vn/v1",
+            api_key="gpustack_08434d4230cd3e3c_b5b281b7334ce8e06db7a46ba8c91933",
+            api_base="http://192.168.1.137/v1", #http://192.168.1.137/v1
             generation_config={"best_of": 1}
         )
         # self.ocr_controller2 = Llm_Vision_Exes(

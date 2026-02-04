@@ -67,6 +67,7 @@ qrdet==2.5
 qreader==3.14
 quadrilateral-fitter==1.12
 Quart==0.20.0
+quart-cors==0.7.0
 qwen-vl-utils==0.0.8
 rapid-orientation==0.0.10
 regex==2024.11.6

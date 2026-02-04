@@ -82,7 +82,7 @@ class OpenapiExes:
             base_url=self.api_base,
         )
         # self._check_api_health()
-        self.model_name = "5CD-AI/Vintern-1B-v3_5"
+        self.model_name = "vintern-1b-v3_5"
 #self.client.models.list().data[0].id
         self.generation_config = generation_config or GENERATION_CONFIG
 

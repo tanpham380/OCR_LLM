@@ -1,5 +1,6 @@
 # app.py
 from quart import Quart, g
+from quart_cors import cors
 from app_utils.database import SQLiteManager
 from app_utils.logging import get_logger
 from app_utils.routes import blueprint  # Adjust the import path as necessary
@@ -39,6 +40,7 @@ db_manager = SQLiteManager(db_path=db_path)
 
 def create_app():
     app = Quart(__name__)
+    app = cors(app, allow_origin="*")
 
     @app.before_serving
     async def before_serving():
