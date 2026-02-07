@@ -12,7 +12,7 @@ sdist/
 var/
 *.egg
 MANIFEST
-app_utils/weights/
+# app_utils/weights/
 # PyInstaller / Nuitka
 build/
 develop-eggs/
@@ -30,9 +30,9 @@ develop-eggs/
 !.vscode/launch.json
 
 # YOLOv8 models
-*.onnx
+# *.onnx
 *.engine
-*.pt
+# *.pt
 *.torchscript
 *.pb
 *.tflite
